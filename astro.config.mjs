@@ -9,7 +9,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 // Agape — Static site configuration
 // See DESIGN.md §2 (Tech Stack), §3.1 (Page Model), Appendix E (301 Redirect Map)
 export default defineConfig({
-  site: 'https://agapenj.org',
+  site: 'https://www.mosmovs.win',
   trailingSlash: 'never',
   build: {
     // Static-only output — fits GitHub Pages free tier
