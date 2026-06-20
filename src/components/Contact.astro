@@ -1,0 +1,171 @@
+---
+/**
+ * Agape — Contact section
+ *
+ * DESIGN.md §3.3.6 — the contact section composes:
+ *   1. Heading + intro
+ *   2. Address + hours + phone + email (left column on desktop)
+ *   3. OpenStreetMap embed (below address)
+ *   4. ContactForm (intake-only, Web3Forms + Turnstile per §6.6)
+ *
+ * Anchor strategy (per G.17):
+ *   - The outer <section> keeps `id="contact"` — this is the
+ *     Appendix E redirect target for legacy `/contact-us/` → `/#contact`
+ *     301s. Changing it would break the redirect map.
+ *   - The inner form card carries `id="contact-form"` — this is the
+ *     anchor used by:
+ *       • The §3.3.6 service-card CTAs ("Ask about IOP" etc.)
+ *       • The Hero "Or send us a message" CTA
+ *       • The Web3Forms post-submit redirect (lands on the success state)
+ *     Clicking any of those should drop the user directly on the form,
+ *     not on the section heading above the address card.
+ *
+ * The address/phone/email/display data is sourced from DESIGN.md
+ * Appendix D ("Contact & Hours"). Single source of truth — if the
+ * client updates hours or phone, this is the only place to edit
+ * (the Footer reflects the same data for redundancy).
+ */
+import OSMEmbed from '~/components/OSMEmbed.astro';
+import ContactForm from '~/components/ContactForm.astro';
+
+const phone = '(609) 242-0086';
+const phoneHref = 'tel:+16092420086';
+const email = 'info@agapenj.org';
+const address = '815 U.S. 9, Lanoka Harbor, NJ 08734';
+const hours = 'Mon–Fri 9:00 AM – 9:00 PM';
+const weekendHours = 'Sat–Sun by appointment only';
+---
+
+<section
+  id="contact"
+  aria-labelledby="contact-heading"
+  class="bg-base-100 py-16 sm:py-20"
+>
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="max-w-prose">
+      <p class="text-sm font-semibold uppercase tracking-wide text-primary">
+        Visit or call
+      </p>
+      <h2
+        id="contact-heading"
+        class="mt-2 text-3xl font-bold tracking-tight text-neutral sm:text-4xl"
+      >
+        We are in Lanoka Harbor.
+      </h2>
+      <p class="mt-3 text-lg text-neutral/80">
+        Send a message and we'll reply within one business day. Or call
+        us — same-day appointments are usually available.
+      </p>
+    </div>
+
+    {/* Two-column on lg+: address/contact card on the left, form on the right.
+        Stacks to single column on mobile — form on top so the primary CTA
+        is reachable without scrolling past the address block. */}
+    <div class="mt-12 grid gap-10 lg:grid-cols-5 lg:gap-12">
+      {/* Left column — contact card + map */}
+      <div class="lg:col-span-2">
+        <div class="rounded-soft border border-base-300 bg-base-200 p-6">
+          <h3 class="text-sm font-semibold uppercase tracking-wide text-primary">
+            Office
+          </h3>
+          <address class="mt-3 not-italic text-base text-neutral">
+            {address}
+          </address>
+
+          <dl class="mt-6 space-y-3 text-sm">
+            <div>
+              <dt class="font-semibold text-neutral">Phone</dt>
+              <dd class="mt-1">
+                <a href={phoneHref} class="text-primary underline-offset-2 hover:underline">
+                  {phone}
+                </a>
+              </dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-neutral">Email</dt>
+              <dd class="mt-1">
+                <a href={`mailto:${email}`} class="text-neutral underline-offset-2 hover:underline">
+                  {email}
+                </a>
+              </dd>
+            </div>
+            <div>
+              <dt class="font-semibold text-neutral">Hours</dt>
+              <dd class="mt-1 text-neutral/80">{hours}</dd>
+              <dd class="text-neutral/80">{weekendHours}</dd>
+            </div>
+          </dl>
+
+          <p class="mt-6">
+            {/* WCAG 2.5.3 Label-in-Name: the aria-label MUST contain the
+                visible text (the "Call" prefix). The earlier
+                "Call Agape Counseling Services at..." aria-label
+                diverged from the visible "Call (609) 242-0086" — that
+                fails the label-content-name-mismatch Lighthouse audit
+                because screen readers announce the aria-label, not the
+                visible text, when both are present. Fix: make the
+                aria-label a strict superset of the visible text. */}
+            <a
+              href={phoneHref}
+              class="inline-flex h-12 w-full items-center justify-center gap-2 rounded-soft bg-primary px-5 text-sm font-semibold text-white shadow-sm sm:w-auto"
+              aria-label={`Call ${phone}`}
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="18"
+                height="18"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+              Call {phone}
+            </a>
+          </p>
+        </div>
+
+        {/* Map below the contact card — full width on mobile, contained
+            on desktop. The OSM embed is the §3.3.6 replacement for the
+            legacy Google Maps JS API + exposed key. */}
+        <div class="mt-6">
+          <OSMEmbed height={280} />
+          <p class="mt-2 text-xs text-neutral/80">
+            <a
+              href="https://www.openstreetmap.org/?mlat=39.8640&mlon=-74.2750#map=17/39.8640/-74.2750"
+              rel="noopener noreferrer"
+              class="underline"
+            >
+              View larger map
+            </a>
+          </p>
+        </div>
+      </div>
+
+      {/* Right column — contact form (intake-only, §6.6 compliant).
+          id="contact-form" is the G.17 anchor target for the service-card
+          CTAs ("Ask about [service]") and the Hero "send us a message"
+          CTA — clicking those jumps the user directly to this card,
+          not to the section header above. The outer <section id="contact">
+          remains the Appendix E redirect target for /contact-us/. */}
+      <div class="lg:col-span-3">
+        <div id="contact-form" class="scroll-mt-20 rounded-soft border border-base-300 bg-base-100 p-6 shadow-sm sm:p-8">
+          <h3 class="text-base font-semibold text-neutral">
+            Send a message
+          </h3>
+          <p class="mt-1 text-sm text-neutral/80">
+            We typically reply within one business day.
+          </p>
+
+          <div class="mt-6">
+            <ContactForm />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

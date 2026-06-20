@@ -1,0 +1,132 @@
+---
+/**
+ * Agape — CrisisResources
+ *
+ * DESIGN.md §3.3.7 + §6.1 — crisis resources are NOT optional content.
+ * They are core. The component renders the §6.1 crisis-line block as a
+ * standalone section near the footer, AND a brief "In crisis?" link
+ * above the fold is the responsibility of the Hero / Navbar layer.
+ *
+ * Visibility rules (binding, §6.1 + §6.8):
+ *   - Crisis resources MUST appear in a dedicated section near the
+ *     footer AND in the footer itself.
+ *   - On mobile, the crisis block must be reachable in ≤ 2 taps from
+ *     any scroll position.
+ *   - The phrase "In crisis?" must appear as a visible link above the
+ *     fold on every page state.
+ *
+ * Content is the §6.1 template verbatim (subject to attorney review).
+ */
+
+const phone = '(609) 242-0086';
+const phoneHref = 'tel:+16092420086';
+---
+
+<section
+  id="crisis"
+  aria-labelledby="crisis-heading"
+  class="border-y border-base-300 bg-base-100"
+>
+  <div class="mx-auto max-w-6xl px-4 py-10 sm:px-6 sm:py-12 lg:px-8">
+    <h2
+      id="crisis-heading"
+      class="text-lg font-bold uppercase tracking-wide text-neutral"
+    >
+      In crisis? Get help now.
+    </h2>
+
+    <div class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+      {/* 911 / ER */}
+      <div class="flex h-full flex-col rounded-soft border border-base-300 bg-base-200 p-4">
+        <p class="text-sm font-semibold uppercase tracking-wide text-neutral/80">
+          Emergency
+        </p>
+        <p class="mt-2 text-base font-medium text-neutral">
+          If you are in immediate danger or experiencing a medical emergency:
+        </p>
+        <p class="mt-3 text-xs text-neutral/80">
+          Or go to your nearest emergency room.
+        </p>
+        <p class="mt-auto pt-3">
+          <a
+            href="tel:911"
+            class="inline-flex h-12 w-full items-center justify-center rounded-soft bg-primary px-4 text-base font-semibold text-white"
+          >
+            Call 911
+          </a>
+        </p>
+      </div>
+
+      {/* 988 — Suicide & Crisis Lifeline */}
+      <div class="flex h-full flex-col rounded-soft border border-base-300 bg-base-200 p-4">
+        <p class="text-sm font-semibold uppercase tracking-wide text-neutral/80">
+          24/7 — Free, confidential
+        </p>
+        <p class="mt-2 text-base font-semibold text-neutral">988</p>
+        <p class="mt-1 text-sm text-neutral/80">Suicide &amp; Crisis Lifeline (US)</p>
+        <p class="mt-3 text-xs text-neutral/80">
+          <a href="https://988lifeline.org/" rel="noopener noreferrer" class="underline">
+            988lifeline.org
+          </a>
+        </p>
+        <p class="mt-auto pt-3">
+          <a
+            href="tel:988"
+            class="inline-flex h-12 w-full items-center justify-center rounded-soft bg-primary px-4 text-base font-semibold text-white"
+          >
+            Call 988
+          </a>
+        </p>
+      </div>
+
+      {/* SAMHSA National Helpline */}
+      <div class="flex h-full flex-col rounded-soft border border-base-300 bg-base-200 p-4">
+        <p class="text-sm font-semibold uppercase tracking-wide text-neutral/80">
+          24/7 — Free, confidential
+        </p>
+        <p class="mt-2 text-base font-semibold text-neutral">1-800-662-4357</p>
+        <p class="mt-1 text-sm text-neutral/80">SAMHSA National Helpline</p>
+        <p class="mt-3 text-xs text-neutral/80">
+          English &amp; Spanish. SUD support.
+        </p>
+        <p class="mt-auto pt-3">
+          <a
+            href="tel:18006624357"
+            class="inline-flex h-12 w-full items-center justify-center rounded-soft bg-primary px-4 text-base font-semibold text-white"
+          >
+            Call SAMHSA
+          </a>
+        </p>
+      </div>
+
+      {/* ReachNJ */}
+      <div class="flex h-full flex-col rounded-soft border border-base-300 bg-base-200 p-4">
+        <p class="text-sm font-semibold uppercase tracking-wide text-neutral/80">
+          24/7 — NJ residents
+        </p>
+        <p class="mt-2 text-base font-semibold text-neutral">1-844-732-2465</p>
+        <p class="mt-1 text-sm text-neutral/80">ReachNJ</p>
+        <p class="mt-3 text-xs text-neutral/80">
+          NJ-specific SUD treatment access.
+        </p>
+        <p class="mt-auto pt-3">
+          <a
+            href="tel:18447322465"
+            class="inline-flex h-12 w-full items-center justify-center rounded-soft bg-primary px-4 text-base font-semibold text-white"
+          >
+            Call ReachNJ
+          </a>
+        </p>
+      </div>
+    </div>
+
+    <p class="mt-6 max-w-prose text-sm text-neutral/80">
+      Agape Counseling Services provides <strong>outpatient</strong>
+      substance use disorder treatment by appointment. This website does
+      not provide medical advice, diagnosis, or treatment. If you are in
+      crisis, do not use the contact form — call the lines above or 911.
+      For non-urgent appointments, call us at{' '}
+      <a href={phoneHref} class="underline">{phone}</a>.
+    </p>
+  </div>
+</section>

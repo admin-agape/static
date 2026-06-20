@@ -1,0 +1,81 @@
+---
+/**
+ * Agape — SEO Component (DESIGN.md §10.1)
+ *
+ * Single source of truth for every page-level metadata surface except
+ * JSON-LD (which lives in BaseLayout.astro per §10.2). The component is
+ * imported once by BaseLayout and emits <title>, <meta description>,
+ * <link rel="canonical">, full Open Graph block, and full Twitter card
+ * block. ZERO JavaScript at runtime — pure SSR HTML emission.
+ *
+ * Contract:
+ *   - Required props: title, description, canonicalURL, ogImage.
+ *     Optional: ogType ('website' default), twitterCard
+ *     ('summary_large_image' default), noindex (false default — use
+ *     only on staging / previews).
+ *   - Defaults applied at the component level so a page can omit them.
+ *   - Performance: 0 KB JS, no regression to §5.1 Lighthouse floor or
+ *     §5.3 ≤ 20 KB total transfer budget.
+ *
+ * Page-level SEO for content collections is driven by an optional `seo:`
+ * block in frontmatter (see §10.1 frontmatter contract). The page
+ * iterating the collection reads the frontmatter and passes the values
+ * to this component.
+ */
+
+interface Props {
+  /** Page <title>. Falls back to site default if omitted (rare). */
+  title: string;
+  /** Meta description. 155 chars target, 320 chars hard ceiling. */
+  description: string;
+  /** Canonical URL for this page; pass Astro.url.href. */
+  canonicalURL: string;
+  /** Absolute URL to the OG image (1200×630, ≤ 200 KB). */
+  ogImage: string;
+  /** Optional OG type. Default: 'website'. */
+  ogType?: 'website' | 'article';
+  /** Optional Twitter card override. Default: 'summary_large_image'. */
+  twitterCard?: 'summary' | 'summary_large_image';
+  /** Optional noindex flag. Default false (index, follow). */
+  noindex?: boolean;
+}
+
+const {
+  title,
+  description,
+  canonicalURL,
+  ogImage,
+  ogType = 'website',
+  twitterCard = 'summary_large_image',
+  noindex = false,
+} = Astro.props;
+
+// Constants per §10.1 — these never change at the component level.
+const siteName = 'Agape Counseling Services';
+const locale = 'en_US';
+---
+
+<title>{title}</title>
+<meta name="description" content={description} />
+<meta name="robots" content={noindex ? 'noindex,nofollow' : 'index,follow'} />
+<link rel="canonical" href={canonicalURL} />
+
+{/* Open Graph block — §10.1 emission contract.
+    ogImage is expected to be an absolute URL; the page is responsible
+    for resolving it via Astro.site. */}
+<meta property="og:type" content={ogType} />
+<meta property="og:url" content={canonicalURL} />
+<meta property="og:title" content={title} />
+<meta property="og:description" content={description} />
+<meta property="og:image" content={ogImage} />
+<meta property="og:site_name" content={siteName} />
+<meta property="og:locale" content={locale} />
+
+{/* Twitter card block — §10.1 emission contract. */}
+<meta name="twitter:card" content={twitterCard} />
+<meta name="twitter:title" content={title} />
+<meta name="twitter:description" content={description} />
+<meta name="twitter:image" content={ogImage} />
+
+{/* hreflang — placeholder for Phase 2 i18n per §9.2 / §10.1. */}
+<link rel="alternate" hreflang="en" href={canonicalURL} />

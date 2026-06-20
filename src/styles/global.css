@@ -1,0 +1,86 @@
+/* Agape — global stylesheet entry.
+ *
+ * Tailwind 3 directives + DaisyUI theme are imported here. Per astro.config.mjs
+ * we disable the @astrojs/tailwind auto-import (applyBaseStyles: false) so
+ * that this file is the single, auditable CSS entry point — important for
+ * a 42 CFR Part 2 site where a stray third-party CSS surface is unacceptable.
+ *
+ * See DESIGN.md §3.5 (Brand Tokens), §5 (Performance & Accessibility),
+ * and §6.2.3 (Form, Analytics, and Embed Posture).
+ *
+ * Font strategy (G.22 — system-font relaxation):
+ *   No web fonts are downloaded. The body, headings, brand-name spans
+ *   (Navbar + Footer), and form labels all resolve to the platform's
+ *   native UI font via the cascade below. This is a deliberate departure
+ *   from the §3.5.1.12 Montserrat-via-@fontsource architecture:
+ *
+ *     - 30 KB woff2 transfer removed (no FOUT, no external CDN request)
+ *     - Lighthouse Performance improves (one less blocking subresource)
+ *     - Visual appearance matches the device — calmer, more "lifeline"-like
+ *       than a single Montserrat weight across all platforms
+ *
+ *   Phase 2 Monterro handoff (if the client later requests the brand font
+ *   back) is now simpler: drop the actual Monterro .woff2 files into
+ *   public/fonts/ and add a single @font-face block BEFORE this rule —
+ *   the cascade picks it up automatically. No component code change.
+ */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* System font stack — single source of truth for the entire site.
+     Mirrors tailwind.config.js `fontFamily.sans`; declared here so the
+     <html> root element renders in the system stack even before Tailwind's
+     preflight runs, and so the rule is auditable in this single file. */
+  html {
+    font-family:
+      -apple-system,
+      BlinkMacSystemFont,
+      'Segoe UI',
+      Roboto,
+      'Helvetica Neue',
+      Arial,
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  /* WCAG 2.1 AA — focus ring is always visible. The Agape primary color
+     against white yields 4.74:1 contrast, sufficient for non-text focus
+     indicators per WCAG 1.4.11. */
+  :focus-visible {
+    outline: 3px solid theme('colors.primary.DEFAULT');
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* Reduced motion — per §5.5 (Motion & Sensory) the build must respect
+     prefers-reduced-motion for all transitions. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  /* Anchor offset so sticky header (#navbar) doesn't clip heading targets.
+     The 5rem value matches the navbar height + a touch of breathing room. */
+  section[id] {
+    scroll-margin-top: 5rem;
+  }
+}
+
+@layer components {
+  /* Skip-link — first focusable element on every page. §5.4 (WCAG 2.1 AA)
+     requires a skip-to-content mechanism for keyboard users. */
+  .skip-link {
+    @apply absolute left-0 top-0 z-50 -translate-y-full bg-primary px-4 py-2 text-white no-underline transition-transform focus:translate-y-0 focus:outline-none;
+  }
+}

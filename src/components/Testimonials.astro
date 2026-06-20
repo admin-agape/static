@@ -1,0 +1,107 @@
+---
+/**
+ * Agape — Testimonials section
+ *
+ * DESIGN.md §3.3.5 + §6.2.2 — the Phase 1 build ships WITHOUT any
+ * testimonials. This component is fully scaffolded so that:
+ *
+ *   1. The src/content/testimonials/ collection has its schema wired
+ *      up (see src/content/config.ts). The schema REQUIRES
+ *      consent_date + consent_hash frontmatter on any future
+ *      testimonial, which makes 42 CFR Part 2 compliance structurally
+ *      enforced rather than a written policy.
+ *
+ *   2. The conditional render pattern `{testimonials.length > 0 && (
+ *      <section>...</section> )}` means that when the collection is
+ *      empty, NO markup for the section appears in the rendered HTML.
+ *      Zero compliance surface on launch.
+ *
+ *   3. Phase 2 path: the client obtains a 42 CFR §2.31-compliant
+ *      consent, drops a signed `.md` file into
+ *      src/content/testimonials/ with consent_date + consent_hash, and
+ *      the next build automatically shows the section.
+ *
+ * Implementation note: we use `import.meta.glob` to enumerate
+ * testimonial files directly rather than `getCollection`. This avoids
+ * Astro's "collection does not exist or is empty" build warning when
+ * the directory is in its Phase 1 empty-but-schema-wired state. The
+ * schema is still enforced at build time when files do exist.
+ *
+ * See TESTIMONIAL-REVIEW.md for the Phase 2 prep worksheet.
+ */
+import type { CollectionEntry } from 'astro:content';
+
+interface TestimonialModule {
+  frontmatter: Omit<CollectionEntry<'testimonials'>['data'], never>;
+  default: any;
+  url: string;
+}
+
+const modules = import.meta.glob<TestimonialModule>('../content/testimonials/*.md');
+const entries = await Promise.all(
+  Object.entries(modules).map(async ([path, loader]) => {
+    const mod = await loader();
+    return { path, mod };
+  }),
+);
+
+// Phase 1 ships empty — verified at Pre-Demo Checklist item 9.
+const testimonials = entries;
+---
+
+{testimonials.length > 0 && (
+  <section
+    id="testimonials"
+    aria-labelledby="testimonials-heading"
+    class="bg-base-100 py-16 sm:py-20"
+  >
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <h2
+        id="testimonials-heading"
+        class="text-3xl font-bold tracking-tight text-neutral sm:text-4xl"
+      >
+        What people say
+      </h2>
+      <p class="mt-3 max-w-prose text-neutral/80">
+        With consent. Real first names only, no identifying details.
+        Every testimonial we publish is backed by a signed 42 CFR Part 2
+        authorization on file.
+      </p>
+
+      <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {testimonials.map(({ mod }) => {
+          const { frontmatter, default: Content } = mod;
+          return (
+            <article class="flex h-full flex-col rounded-soft border border-base-300 bg-base-200 p-6 shadow-sm">
+              <blockquote class="flex-1 text-neutral">
+                <p class="text-base leading-relaxed">
+                  <span aria-hidden="true" class="text-3xl text-primary">&ldquo;</span>
+                  <Content />
+                  <span aria-hidden="true" class="text-3xl text-primary">&rdquo;</span>
+                </p>
+              </blockquote>
+              <footer class="mt-4 border-t border-base-300 pt-4 text-sm">
+                <p class="font-semibold text-neutral">— {frontmatter.name}</p>
+                {frontmatter.service && (
+                  <p class="text-neutral/80">{frontmatter.service}</p>
+                )}
+              </footer>
+            </article>
+          );
+        })}
+      </div>
+    </div>
+  </section>
+)}
+
+{/*
+  When testimonials.length === 0 (Phase 1 launch state), this entire
+  block evaluates to nothing. No <section id="testimonials">, no
+  heading, no anchor target. The conditional render is the §3.3.5
+  structural guarantee.
+
+  Verified at Pre-Demo Checklist item 9:
+   - No Testimonials section appears on the live site at launch.
+   - Dropping a sample .md file with valid frontmatter causes the
+     section to appear on the next build.
+*/}

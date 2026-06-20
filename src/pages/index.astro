@@ -1,0 +1,119 @@
+---
+/**
+ * Agape — index page
+ *
+ * DESIGN.md §3.1 — single long-scroll page composed of the sections
+ * specified in §3.3. The page is wrapped by BaseLayout which supplies
+ * the Navbar, Cloudflare Web Analytics beacon, and Footer.
+ *
+ * Phase 2 status: Hero, AccessBanner (inline), ServicesGrid, About
+ * (inline with template copy), Testimonials (empty per §3.3.5), and
+ * Contact (full Web3Forms + Turnstile wiring) are all rendered. The
+ * About section is rendered inline because its content is template
+ * copy pending §4.1 #6 client approval — extracting it to its own
+ * component is a low-priority cleanup once the final copy lands.
+ */
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import Hero from '~/components/Hero.astro';
+import ServicesGrid from '~/components/ServicesGrid.astro';
+import Testimonials from '~/components/Testimonials.astro';
+import FAQ from '~/components/FAQ.astro';
+import Contact from '~/components/Contact.astro';
+---
+
+<BaseLayout
+  title="Agape Counseling Services — Outpatient SUD care in Lanoka Harbor, NJ"
+  description="Outpatient substance use disorder counseling in Lanoka Harbor, NJ. Intensive outpatient program, individualized counseling, anger management, reiki and meditation. Bilingual. Medicaid accepted. No wait list."
+>
+  <Hero />
+
+  {/*
+    §3.3.2 AccessBanner — bilingual / Medicaid / no-wait info.
+    Replaces the legacy modal popup. Currently rendered inline because
+    it's a single-section banner with copy from Appendix D. Will be
+    extracted to AccessBanner.astro when §4.1 client approvals land.
+  */}
+  <section
+    id="access"
+    aria-labelledby="access-heading"
+    class="border-y border-base-300 bg-secondary py-8 sm:py-10"
+  >
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <h2 id="access-heading" class="sr-only">
+        Access information
+      </h2>
+      <p class="text-center text-base font-medium text-neutral sm:text-lg">
+        We are now offering <strong>bilingual services</strong>, with the
+        addition of taking <strong>Medicaid</strong>,{' '}
+        <strong>no wait time</strong>, and options for uninsured individuals.
+      </p>
+      <p class="mt-3 text-center text-sm text-neutral/80">
+        Give us a call today for more information:{' '}
+        <a
+          href="tel:+16092420086"
+          class="font-semibold text-primary underline-offset-2 hover:underline"
+        >
+          (609) 242-0086
+        </a>
+      </p>
+    </div>
+  </section>
+
+  <ServicesGrid />
+
+  {/*
+    §3.3.4 About / Mission — template copy pending §4.1 #6 client
+    approval. Same template as Phase 1, will be extracted to
+    About.astro when the final mission statement lands.
+  */}
+  <section
+    id="about"
+    aria-labelledby="about-heading"
+    class="bg-base-200 py-16 sm:py-20"
+  >
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <div class="max-w-prose">
+        <p class="text-sm font-semibold uppercase tracking-wide text-primary">
+          About Agape
+        </p>
+        <h2
+          id="about-heading"
+          class="mt-2 text-3xl font-bold tracking-tight text-neutral sm:text-4xl"
+        >
+          Counseling rooted in Ocean County since the 1990s.
+        </h2>
+        <div class="mt-6 space-y-4 text-base text-neutral/80">
+          {/* [CLIENT TO REVIEW — DESIGN.md §4.1 #6] Mission statement pending
+              client approval. The three §3.3.4 required copy elements are
+              rendered below from the §3.3.4 template. */}
+          <p>
+            Agape Counseling Services is a certified 501(c)(3) nonprofit
+            founded in the 1990s.
+          </p>
+          <p>
+            We serve Ocean County, NJ from our Lanoka Harbor location.
+          </p>
+          <p>
+            Our team helps people struggling with substance use disorder
+            find and keep recovery through evidence-based outpatient care.
+          </p>
+        </div>
+        <p class="mt-6 text-sm text-neutral/80">
+          {/* [CLIENT TO REVIEW — DESIGN.md §4.1 #13] EIN to be added once
+              supplied by the client. */}
+          Agape is a 501(c)(3) nonprofit organization. EIN on file.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <Testimonials />
+
+  {/* §3.3.8 FAQ section — required at launch (per the §3.3.8 value prop:
+      "free information that helps 95% of users"). Sits between
+      Testimonials and Contact — the natural reading order (peer
+      stories → questions → take action). */}
+  <FAQ />
+
+  <Contact />
+</BaseLayout>

@@ -1,0 +1,128 @@
+---
+/**
+ * Agape — Logo Component (DESIGN.md §3.5.1.3)
+ *
+ * Single source of truth for every logo render across the site (Navbar,
+ * Footer, future About, future email signatures). The component reads the
+ * resolved SVG via Astro's asset pipeline and inlines it as <svg>...</svg>
+ * in the rendered HTML — so monochrome treatments inherit `currentColor`
+ * without a second network request, and the `<picture>` source-set for
+ * colorScheme="auto" resolves at the SVG level.
+ *
+ * Contract:
+ *   - 5 usage surfaces, all routed through this component (Navbar,
+ *     Footer, favicon `<link>`, OG card baked at design time, future
+ *     About). No <img src="..."> reference outside this component
+ *     for logo assets.
+ *   - 0 KB framework JS — pure SSR HTML emission. Consistent with
+ *     §2.1 / §5.3 / §10.1 SSR-only discipline.
+ *   - Accessibility: `decorative` prop drives the alt/aria-label
+ *     decision at the component level. Worst-case fallback (forgot
+ *     `decorative` on a logo-in-link context) is a doubled
+ *     announcement per §3.5.1.5, not a silent failure.
+ *   - Phase 1 placeholder behavior (§3.5.1.7.2 + §3.5.1.7.3.2): the
+ *     canonical Brand Logo is `public/brand/company-logo.svg` (1,674
+ *     bytes, flowing-dove geometry per G.19, `#3a6faa` per G.18).
+ *     Lockup variants fall back to the mark until Phase 2 designer
+ *     redraws land per §3.5.1.7.4.
+ */
+import brandLogoRaw from '~/../public/brand/company-logo.svg?raw';
+
+interface Props {
+  /** Which variant to render. Default: 'mark'. Lockup variants fall back
+   *  to 'mark' until the §3.5.1.7.4 designer redraw ships. */
+  variant?: 'mark' | 'lockup-horizontal' | 'lockup-stacked';
+  /** Color treatment. Default: 'full' (brand blue solid). 'light' and
+   *  'dark' use `currentColor` so the caller's `color:` controls the
+   *  fill — useful on hero overlays and printed collateral. */
+  colorScheme?: 'full' | 'light' | 'dark' | 'auto';
+  /** Sizing token. Default: 'md' (32px) — the Navbar brand-link default.
+   *  'xl' is intended for future hero use. */
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
+  /** Decorative mode. If true, the logo is treated as decoration
+   *  (alt="", aria-hidden="true") — the parent element MUST provide
+   *  an accessible name. Default: false (logo is informative). */
+  decorative?: boolean;
+  /** Override the accessible name when not decorative.
+   *  Default: 'Agape Counseling Services'. */
+  alt?: string;
+}
+
+const {
+  variant = 'mark',
+  colorScheme = 'full',
+  size = 'md',
+  decorative = false,
+  alt = 'Agape Counseling Services',
+} = Astro.props;
+
+// Size map — height + width per Tailwind tokens. §3.5.1.3 contract:
+// lockup-horizontal uses fixed height + auto width (preserves aspect
+// ratio). Mark and lockup-stacked are square.
+const sizeClass: Record<string, string> = {
+  xs: 'h-4 w-4',
+  sm: 'h-6 w-6',
+  md: 'h-8 w-8',
+  lg: 'h-12 w-12',
+  xl: 'h-16 w-16',
+};
+
+// Compute the wrapper element — `<picture>` for colorScheme="auto",
+// plain `<svg>` for the other three. For 'full', the inline SVG's
+// own `fill="#3a6faa"` (per the G.18 swap) carries the color. For
+// 'light' and 'dark', we wrap the SVG in a span whose `color:` the
+// caller can set; the inline SVG inherits `currentColor` because the
+// logo paths use fill via parent (the G.18 fill="#3a6faa" sits on
+// the `<g>` parent which we override below for monochrome variants).
+const usePicture = colorScheme === 'auto';
+
+// For monochrome variants, replace the parent's fill="#3a6faa" with
+// currentColor so the caller's color (white for "light", neutral for
+// "dark") takes over. Done at build time — no runtime JS.
+const svgHtml =
+  colorScheme === 'full'
+    ? brandLogoRaw
+    : brandLogoRaw.replace(/fill="#3a6faa"/g, 'fill="currentColor"');
+
+const sizeCls = sizeClass[size];
+
+// Decorative → no role, alt="" + aria-hidden. Informative → role="img"
+// + aria-label = the brand name (or override).
+const a11yAttrs = decorative
+  ? { alt: '', 'aria-hidden': 'true' as const, role: undefined }
+  : { alt, 'aria-hidden': undefined, role: 'img' as const };
+---
+
+{usePicture ? (
+  /* colorScheme="auto": swap to the light/dark variant on prefers-color-scheme.
+     Until the Phase 2 dark-theme pass ships, both sources point at the same
+     inline SVG with currentColor inheritance — so dark/light system themes
+     can each pick the right monochrome treatment via the wrapping span. */
+  <picture class:list={['inline-block align-middle', sizeCls]}>
+    <source media="(prefers-color-scheme: dark)" srcset="data:image/svg+xml;utf8," />
+    <span
+      class="inline-flex items-center justify-center text-primary"
+      aria-hidden={a11yAttrs['aria-hidden']}
+    >
+      <Fragment set:html={svgHtml} />
+    </span>
+  </picture>
+) : (
+  /* Standard SSR emission: a wrapper span for `currentColor` inheritance
+     (colorScheme=light|dark) or a bare inline SVG (colorScheme=full).
+     The span is sized via the same Tailwind classes so layout doesn't shift
+     between schemes. */
+  <span
+    class:list={[
+      'inline-flex shrink-0 items-center justify-center',
+      sizeCls,
+      colorScheme === 'light' && 'text-white',
+      colorScheme === 'dark' && 'text-neutral',
+    ]}
+    aria-hidden={a11yAttrs['aria-hidden']}
+    role={a11yAttrs.role}
+    aria-label={!decorative ? alt : undefined}
+  >
+    <Fragment set:html={svgHtml} />
+  </span>
+)}

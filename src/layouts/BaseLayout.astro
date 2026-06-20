@@ -1,0 +1,190 @@
+---
+/**
+ * Agape — BaseLayout
+ *
+ * Single HTML shell for the entire site. Wraps every page so the head,
+ * skip-link, navbar, footer, and the two Cloudflare third-party scripts
+ * (Web Analytics beacon + Turnstile bootstrap) are configured exactly once.
+ *
+ * Compliance surface (DESIGN.md §6):
+ *   - The two third-party scripts on this site are BOTH from Cloudflare:
+ *       1. Cloudflare Web Analytics beacon (§6.2.3 — cookieless, no
+ *          profiling, no consent banner). ~5KB, defer async.
+ *       2. Cloudflare Turnstile bootstrap (§6.6 spam protection for
+ *          ContactForm.astro — invisible widget). ~50KB, async defer,
+ *          only loaded when PUBLIC_TURNSTILE_SITE_KEY is set.
+ *     No GA, no Meta Pixel, no GTM, no Facebook SDK. The §2.1 "0 KB
+ *     framework JS" goal is preserved (no Astro islands, no hydration).
+ *   - If PUBLIC_CF_ANALYTICS_TOKEN or PUBLIC_TURNSTILE_SITE_KEY is unset
+ *     (e.g., during local dev or before the client provisions them), the
+ *     corresponding script is omitted entirely. The build never fails
+ *     because of an unset credential.
+ *   - The data-theme attribute activates the `agape` DaisyUI theme
+ *     defined in tailwind.config.js (DESIGN.md §3.5).
+ *   - JSON-LD is `MedicalClinic` per §10.2 (preferred for clinical
+ *     practices). The §10.2.1 forbidden fields (`founder`, `employee`,
+ *     `member`, `review`, `aggregateRating`, `ratingValue`,
+ *     `reviewCount`) are explicitly absent.
+ */
+import '~/styles/global.css';
+import Navbar from '~/components/Navbar.astro';
+import Footer from '~/components/Footer.astro';
+import CrisisResources from '~/components/CrisisResources.astro';
+import SEO from '~/components/SEO.astro';
+
+interface Props {
+  title?: string;
+  description?: string;
+  /** Override the canonical URL (default: site root + current path). */
+  canonical?: string;
+  /** Override the OG image URL (default: §10.1 fallback). */
+  ogImage?: string;
+  /** Hide CrisisResources inside <main>; some legacy flows may want to
+   *  inject them higher up. Default: render inside main, above the fold
+   *  on mobile (DESIGN.md §3.3.7 visibility rule). */
+  suppressCrisisResources?: boolean;
+}
+
+const {
+  title = 'Agape Counseling Services — Lanoka Harbor, NJ',
+  description = 'Outpatient substance use disorder counseling in Lanoka Harbor, NJ. Intensive outpatient program, individualized counseling, anger management, reiki and meditation. Bilingual. Medicaid accepted. No wait list.',
+  canonical,
+  ogImage,
+  suppressCrisisResources = false,
+} = Astro.props;
+
+// Cloudflare Web Analytics — token is provisioned post-handoff by the
+// client via .env / GitHub Actions secret. See DESIGN.md §6.2.3
+// (cookieless, no visitor profiling, no consent banner required).
+const cfToken = import.meta.env.PUBLIC_CF_ANALYTICS_TOKEN;
+
+// Cloudflare Turnstile — site key is provisioned post-handoff by the
+// client via .env / GitHub Actions secret. Used by ContactForm.astro
+// as the §6.6 spam-protection layer (invisible widget). When unset, the
+// Turnstile widget and its bootstrap script are omitted entirely; the
+// honeypot field in ContactForm.astro is the baseline spam gate.
+const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
+
+const siteUrl = Astro.site?.toString().replace(/\/$/, '') ?? 'https://agapenj.org';
+const canonicalUrl = canonical ?? siteUrl + Astro.url.pathname;
+// §10.1 — fallback to the canonical /og-default.jpg (1200×630, ≤ 200 KB).
+const ogImageUrl = ogImage ?? `${siteUrl}/og-default.jpg`;
+---
+
+<!doctype html>
+<html lang="en" data-theme="agape">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="generator" content={Astro.generator} />
+
+    {/* SEO.astro — DESIGN.md §10.1 emission contract. Single source of
+        truth for title, description, canonical, OG, Twitter. */}
+    <SEO
+      title={title}
+      description={description}
+      canonicalURL={canonicalUrl}
+      ogImage={ogImageUrl}
+    />
+
+    {/* Favicon — Brand Logo per DESIGN.md §3.5.1.1 + §3.5.1.7.3.2. The
+        `<link rel="icon">` points at /brand/company-logo.svg (the Brand
+        Logo at #3a6faa, 1,674 bytes per the G.19 geometry swap) so the
+        browser tab / address-bar / bookmarks icon matches the navbar
+        brand mark. */}
+    <link rel="icon" type="image/svg+xml" href="/brand/company-logo.svg" />
+
+    {/* Apple touch icon — falls back to favicon.svg for now (Phase 2:
+        generate a 180×180 PNG per §3.5.1.1). */}
+    <link rel="apple-touch-icon" href="/brand/company-logo.svg" />
+
+    {/* Cloudflare Web Analytics — first of two Cloudflare third-party
+        scripts. Per DESIGN.md §6.2.3 this is cookieless, no visitor
+        profiling, no consent banner required. Loaded deferred + async
+        so it never blocks render. ~5KB. */}
+    {cfToken && (
+      <script
+        defer
+        src="https://static.cloudflareinsights.com/beacon.min.js"
+        data-cf-beacon={`{"token": "${cfToken}"}`}
+        is:inline
+      />
+    )}
+
+    {/* Cloudflare Turnstile bootstrap script — second Cloudflare
+        third-party script, used by ContactForm.astro for the §6.6
+        spam-protection layer (invisible widget). The script auto-
+        discovers `<div class="cf-turnstile" data-sitekey="...">`
+        elements and renders the widget. ~50KB but loaded async +
+        only when Turnstile is actually configured. */}
+    {turnstileSiteKey && (
+      <script
+        src="https://challenges.cloudflare.com/turnstile/v0/api.js"
+        async
+        defer
+        is:inline
+      />
+    )}
+
+    {/* Schema.org MedicalClinic — DESIGN.md §10.2.
+        `MedicalClinic` is the strongly preferred @type for this site
+        (clinical practice providing outpatient SUD/IOP/counseling).
+        Replaces the G.2/G.3 interim `ProfessionalService` type. All
+        §10.2.1 forbidden fields (founder, employee, member, review,
+        aggregateRating, ratingValue, reviewCount) are explicitly
+        absent — the §3.3.5 testimonial ship-empty contract means
+        emitting an aggregate rating with zero reviews would be a
+        spam signal. No PHI, no testimonial text, no staff names —
+        all within §6.2.1 42 CFR Part 2 boundaries. */}
+    <script type="application/ld+json" is:inline set:html={JSON.stringify({
+      '@context': 'https://schema.org',
+      '@type': 'MedicalClinic',
+      name: 'Agape Counseling Services',
+      url: siteUrl,
+      telephone: '+1-609-242-0086',
+      email: 'info@agapenj.org',
+      image: `${siteUrl}/og-default.jpg`,
+      address: {
+        '@type': 'PostalAddress',
+        streetAddress: '815 U.S. 9',
+        addressLocality: 'Lanoka Harbor',
+        addressRegion: 'NJ',
+        postalCode: '08734',
+        addressCountry: 'US',
+      },
+      openingHoursSpecification: [
+        {
+          '@type': 'OpeningHoursSpecification',
+          dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'],
+          opens: '09:00',
+          closes: '21:00',
+        },
+      ],
+      priceRange: '$$',
+      medicalSpecialty: 'https://schema.org/Psychiatric',
+      areaServed: [
+        { '@type': 'City', name: 'Lanoka Harbor' },
+        { '@type': 'AdministrativeArea', name: 'Ocean County, NJ' },
+      ],
+    })} />
+  </head>
+
+  <body class="font-sans min-h-screen bg-base-100 text-neutral antialiased">
+    {/* WCAG 2.1 AA §2.4.1 — bypass blocks: keyboard users can jump
+        straight to main content. Visually hidden until focused. */}
+    <a href="#main-content" class="skip-link">Skip to main content</a>
+
+    <Navbar />
+
+    <main id="main-content" tabindex="-1">
+      {suppressCrisisResources ? <slot /> : (
+        <>
+          <slot />
+          <CrisisResources />
+        </>
+      )}
+    </main>
+
+    <Footer />
+  </body>
+</html>

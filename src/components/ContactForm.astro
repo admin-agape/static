@@ -1,0 +1,393 @@
+---
+/**
+ * Agape — ContactForm
+ *
+ * DESIGN.md §3.3.6 + §6.6 — the contact form is intake-only. No clinical
+ * fields (no DOB, no insurance, no SSN, no court case #, no substances,
+ * no frequency, no dosage, no diagnosis). The form fields are exactly:
+ *
+ *   - Name        (required)
+ *   - Phone       (optional)
+ *   - Email       (required)
+ *   - Preferred   (email or phone)
+ *   - Message     (required, max 2000)
+ *   - Consent     (required, §6.6 exact text)
+ *
+ * Spam protection (§6.6 binding):
+ *   - Honeypot field (botcheck, Web3Forms convention; bots fill it in,
+ *     humans never see it, Web3Forms silently drops submissions where
+ *     it is checked).
+ *   - Cloudflare Turnstile (invisible widget). Rendered conditionally
+ *     when PUBLIC_TURNSTILE_SITE_KEY is set in env. When unset, the
+ *     honeypot alone provides baseline spam protection.
+ *
+ * Form provider (§3.4 + §6.2.3 + §6.6):
+ *   - Web3Forms at https://api.web3forms.com/submit
+ *   - Account-free handoff: the form endpoint is hard-coded; only the
+ *     access key (PUBLIC_WEB3FORMS_ACCESS_KEY env var) and the email
+ *     routing config (set inside Web3Forms free dashboard) change
+ *     during handoff.
+ *
+ * Compliance:
+ *   - §6.6 consent checkbox text is verbatim (per G.17 — supersedes the
+ *     shorter 2.13.0 text). The longer form acknowledges that (a) the
+ *     form is not monitored 24/7, (b) it is not for emergency clinical
+ *     situations, and (c) standard email is not a secure channel for
+ *     sensitive medical information. Pending attorney sign-off (§3.3.6
+ *     notes this as `[ATTORNEY REVIEW PENDING]` — once the client
+ *     counsel approves, the marker is removed but the text stays).
+ *     Required, unchecked by default.
+ *   - HTTPS-only — Web3Forms endpoint is HTTPS by default.
+ *   - Email-only delivery — Web3Forms is configured by the client to
+ *     forward to info@agapenj.org with no third-party sharing.
+ *
+ * JS surface:
+ *   - Form-submit + Turnstile callback handler lives in the Astro
+ *     script-tagged block at the bottom of this file (bundled by Astro
+ *     as a standard module, ~1KB after minification). Originally this
+ *     was an inline script with the is:inline directive, but Vite
+ *     dev-mode dependency scanning tripped on the inline content (false
+ *     positive - scanner-vs-Astro-CST mismatch, see DESIGN.md
+ *     Appendix G.12.2). The bundled form is the canonical Astro
+ *     pattern: same byte budget, same no-JS fallback, dev server
+ *     boots clean.
+ *   - No-JS fallback: the form's action + method attributes are set so
+ *     a user with JS disabled can still POST and Web3Forms will
+ *     redirect to the redirect URL.
+ */
+
+const accessKey = import.meta.env.PUBLIC_WEB3FORMS_ACCESS_KEY ?? '';
+const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? '';
+
+const fromName = 'Agape Website';
+const subject = 'New inquiry from agapenj.org contact form';
+// Web3Forms falls back to the form action URL when no redirect is
+// provided. For a single-page site, redirect back to /?submitted=true
+// and let the ContactSection show a thank-you state via the URL
+// fragment. For no-JS users the redirect still works — Web3Forms
+// handles it server-side.
+// Per G.17: redirect target is the form card, not the section header —
+// so the Web3Forms success redirect lands the user on the form's thank-you
+// state directly (same anchor used by the "Ask about [service]" service
+// CTAs and the Hero "Or send us a message" CTA).
+const redirectUrl = 'https://agapenj.org/?submitted=true#contact-form';
+---
+
+<form
+  id="agape-contact-form"
+  action="https://api.web3forms.com/submit"
+  method="POST"
+  class="space-y-5"
+  aria-describedby="form-status"
+>
+  {/* Honeypot — Web3Forms convention. Hidden from humans, irresistible
+      to naive bots. Must come BEFORE the real inputs in DOM order so
+      that autofill heuristics see it first. */}
+  <input
+    type="checkbox"
+    name="botcheck"
+    class="hidden"
+    style="position: absolute; left: -9999px; top: -9999px;"
+    tabindex="-1"
+    autocomplete="off"
+    aria-hidden="true"
+  />
+
+  {/* Web3Forms config — hidden inputs */}
+  <input type="hidden" name="access_key" value={accessKey} />
+  <input type="hidden" name="subject" value={subject} />
+  <input type="hidden" name="from_name" value={fromName} />
+  <input type="hidden" name="redirect" value={redirectUrl} />
+
+  {/* Name */}
+  <div>
+    <label for="cf-name" class="mb-1 block text-sm font-semibold text-neutral">
+      Name <span class="text-primary" aria-hidden="true">*</span>
+      <span class="sr-only">(required)</span>
+    </label>
+    <input
+      id="cf-name"
+      type="text"
+      name="name"
+      required
+      minlength="2"
+      maxlength="80"
+      autocomplete="name"
+      class="block h-12 w-full rounded-soft border border-base-300 bg-base-100 px-4 text-base text-neutral shadow-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+    />
+  </div>
+
+  {/* Email + Phone — side-by-side on tablet+, stacked on mobile */}
+  <div class="grid gap-5 sm:grid-cols-2">
+    <div>
+      <label for="cf-email" class="mb-1 block text-sm font-semibold text-neutral">
+        Email <span class="text-primary" aria-hidden="true">*</span>
+        <span class="sr-only">(required)</span>
+      </label>
+      <input
+        id="cf-email"
+        type="email"
+        name="email"
+        required
+        autocomplete="email"
+        inputmode="email"
+        class="block h-12 w-full rounded-soft border border-base-300 bg-base-100 px-4 text-base text-neutral shadow-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+      />
+    </div>
+    <div>
+      <label for="cf-phone" class="mb-1 block text-sm font-semibold text-neutral">
+        Phone
+      </label>
+      <input
+        id="cf-phone"
+        type="tel"
+        name="phone"
+        autocomplete="tel"
+        inputmode="tel"
+        placeholder="(609) 555-0100"
+        class="block h-12 w-full rounded-soft border border-base-300 bg-base-100 px-4 text-base text-neutral shadow-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+      />
+    </div>
+  </div>
+
+  {/* Preferred contact method */}
+  <fieldset>
+    <legend class="mb-2 block text-sm font-semibold text-neutral">
+      Preferred contact method
+    </legend>
+    <div class="flex gap-6">
+      <label class="inline-flex items-center gap-2 text-sm text-neutral">
+        <input
+          type="radio"
+          name="preferred_contact"
+          value="email"
+          checked
+          class="h-4 w-4 border-base-300 text-primary focus:ring-primary"
+        />
+        Email
+      </label>
+      <label class="inline-flex items-center gap-2 text-sm text-neutral">
+        <input
+          type="radio"
+          name="preferred_contact"
+          value="phone"
+          class="h-4 w-4 border-base-300 text-primary focus:ring-primary"
+        />
+        Phone
+      </label>
+    </div>
+  </fieldset>
+
+  {/* Message */}
+  <div>
+    <label for="cf-message" class="mb-1 block text-sm font-semibold text-neutral">
+      How can we help? <span class="text-primary" aria-hidden="true">*</span>
+      <span class="sr-only">(required)</span>
+    </label>
+    {/* Per G.17: placeholder copy is "I'd like to learn more about..." —
+        a structural prompt that pairs with the §3.3.6 service-card CTAs
+        ("Ask about IOP" → click → land here → user has a starting sentence
+        ready to type). Italic + #9ca3af styling visually separates the
+        prompt from user-entered content so it isn't mistaken for real
+        form data. The `[#9ca3af]` arbitrary value is the exact hex from
+        the G.17 spec; Tailwind's default `gray-400` resolves to the same
+        color but the explicit hex keeps the design intent self-documenting
+        in the source. */}
+    <textarea
+      id="cf-message"
+      name="message"
+      required
+      rows="5"
+      maxlength="2000"
+      placeholder="I'd like to learn more about..."
+      class="block w-full rounded-soft border border-base-300 bg-base-100 px-4 py-3 text-base text-neutral shadow-sm transition-colors placeholder:italic placeholder:text-[#9ca3af] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+    ></textarea>
+    {/* §6.6 binding — the form MUST NOT elicit clinical information.
+        The helper text below is a structural nudge, not a request for
+        clinical data. It exists to make the §6.2.1 boundary visible
+        to the user before they type. */}
+    <p class="mt-1 text-xs text-neutral/80">
+      Please don't include medical, substance-use, or other sensitive
+      health information. For emergencies, call <a href="tel:911" class="underline">911</a>
+      or <a href="tel:988" class="underline">988</a>.
+    </p>
+  </div>
+
+  {/* §6.6 consent checkbox — text is verbatim per G.17 spec.
+      This text is intentionally longer than the §6.6 2.13.0 wording.
+      The three explicit clauses (24/7 monitoring / emergency use / secure
+      channel) are the §6.6 attorney-flagged compliance pillars:
+        (a) mitigates "expectation of security" / emergency-liability risk
+            when a user in crisis uses the form to signal an emergency,
+        (b) shifts the burden of PHI/insecure-channel awareness onto the
+            user (standard email is not HIPAA-compliant),
+        (c) explicitly disclaims that filling out this form does not
+            constitute a patient-provider relationship or clinical
+            assessment.
+      [ATTORNEY REVIEW PENDING] — once the client counsel signs off on the
+      exact wording, this comment is dropped but the text remains. */}
+  <div class="rounded-soft border border-base-300 bg-base-200 p-4">
+    <label class="flex items-start gap-3 text-sm text-neutral">
+      <input
+        type="checkbox"
+        id="cf-consent"
+        name="consent"
+        required
+        class="mt-0.5 h-5 w-5 flex-shrink-0 border-base-300 text-primary focus:ring-primary"
+      />
+      <span>
+        I understand that this form is not monitored 24/7, is not for
+        emergency clinical situations, and is not a secure channel for
+        sensitive medical information. If you are having an emergency,
+        please call 911 or your local emergency services immediately.
+      </span>
+    </label>
+  </div>
+
+  {/* Cloudflare Turnstile — invisible widget. Only rendered when the
+      site key env var is provisioned. Without it, the honeypot alone
+      provides baseline spam protection and the form still works. */}
+  {turnstileSiteKey && (
+    <div
+      class="cf-turnstile"
+      data-sitekey={turnstileSiteKey}
+      data-callback="onAgapeTurnstileSuccess"
+      data-theme="light"
+    ></div>
+  )}
+
+  {/* Submit button — disabled until the Turnstile challenge succeeds
+      (when Turnstile is rendered). When Turnstile is absent, the button
+      is always enabled and the honeypot is the only spam gate. */}
+  <div>
+    <button
+      type="submit"
+      id="agape-submit-btn"
+      class="inline-flex h-14 w-full items-center justify-center gap-2 rounded-soft bg-primary px-6 text-base font-semibold text-white shadow-md transition-transform hover:scale-[1.01] focus-visible:scale-[1.01] motion-reduce:transform-none disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+      disabled={turnstileSiteKey ? true : false}
+    >
+      Send message
+    </button>
+    <p class="mt-2 text-xs text-neutral/80">
+      We typically reply within one business day.
+    </p>
+  </div>
+
+  <div
+    id="form-status"
+    role="status"
+    aria-live="polite"
+    class="min-h-[1.5rem] text-sm"
+  ></div>
+</form>
+
+  <script>
+  // Agape — ContactForm client-side handler.
+  //
+  // Bundled by Astro as a standard module (not is:inline, so Vite/Astro
+  // tree-shake imports, minify, and ship a single hashed chunk). The
+  // original was an inline script with the is:inline directive, but Vite dev-mode
+  // dependency scanner tripped on it (false positive — see DESIGN.md
+  // Appendix G.12.2). Bundled script-tagged form is the canonical Astro pattern
+  // and ships the same byte budget (~1KB after minification).
+  //
+  // Behavior:
+  //   1. Wires up Cloudflare Turnstile's success callback to enable the
+  //      submit button when the invisible widget passes.
+  //   2. Intercepts the form's submit event for an AJAX POST to Web3Forms.
+  //      CRITICAL (G.21): we rely on the browser's native HTML5 validation
+  //      to gate this handler. The form has no `novalidate` attribute, so
+  //      the browser shows the native "Please fill out this field" tooltip
+  //      and DOES NOT FIRE the submit event when any required field (incl.
+  //      the consent checkbox per §6.6) is empty/invalid. Our AJAX handler
+  //      therefore only ever runs on a form that has already passed native
+  //      validation — `e.preventDefault()` here is safe because validation
+  //      has already happened upstream.
+  //   3. On success: hides the form and announces a thank-you message in
+  //      the aria-live status region.
+  //   4. On failure (HTTP error or Web3Forms success=false): restores the
+  //      submit button and shows an error message with phone/email
+  //      fallback per DESIGN.md §6.6.
+  //
+  // No-JS graceful fallback: the form's action + method attributes in
+  // the template above mean a user with JS disabled still POSTs natively
+  // and Web3Forms redirects to the thank-you URL. The native browser
+  // validation also runs on this path — the no-JS user gets the same
+  // "please fill out this field" tooltip, just rendered by the browser
+  // rather than intercepted by JS.
+
+  // Turnstile success callback — enables the submit button. The
+  // data-callback attribute on the .cf-turnstile div points here.
+  window.onAgapeTurnstileSuccess = function () {
+    var btn = document.getElementById('agape-submit-btn');
+    if (btn) btn.disabled = false;
+  };
+
+  (function () {
+    var form = document.getElementById('agape-contact-form');
+    if (!form) return;
+    var status = document.getElementById('form-status');
+
+    form.addEventListener('submit', function (e) {
+      // If the form has been submitted via the no-JS path, the browser
+      // already did a native POST and we are not in this handler. We
+      // only intercept when JS is alive.
+      e.preventDefault();
+
+      var btn = document.getElementById('agape-submit-btn');
+      var originalLabel = btn ? btn.textContent : 'Send message';
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Sending...';
+      }
+
+      var formData = new FormData(form);
+
+      fetch('https://api.web3forms.com/submit', {
+        method: 'POST',
+        body: formData,
+      })
+        .then(function (res) {
+          return res.json().catch(function () {
+            return { success: false, message: 'Invalid response from form provider.' };
+          });
+        })
+        .then(function (data) {
+          if (data && data.success) {
+            form.style.display = 'none';
+            if (status) {
+              status.className = 'mt-2 rounded-soft border border-primary/30 bg-primary/10 p-4 text-sm text-neutral';
+              status.innerHTML =
+                '<p class="font-semibold text-primary">Thanks!</p>' +
+                '<p class="mt-1">We received your message and will reply within one business day. ' +
+                'If you need to reach us sooner, call <a href="tel:+16092420086" class="underline">(609) 242-0086</a>.</p>';
+            }
+          } else {
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = originalLabel;
+            }
+            if (status) {
+              status.className = 'mt-2 rounded-soft border border-red-300 bg-red-50 p-4 text-sm text-neutral';
+              status.innerHTML =
+                '<p class="font-semibold">Something went wrong.</p>' +
+                '<p class="mt-1">Please call us at <a href="tel:+16092420086" class="underline">(609) 242-0086</a> ' +
+                'or email <a href="mailto:info@agapenj.org" class="underline">info@agapenj.org</a>.</p>';
+            }
+          }
+        })
+        .catch(function () {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = originalLabel;
+          }
+          if (status) {
+            status.className = 'mt-2 rounded-soft border border-red-300 bg-red-50 p-4 text-sm text-neutral';
+            status.innerHTML =
+              '<p class="font-semibold">Network error.</p>' +
+              '<p class="mt-1">Please call us at <a href="tel:+16092420086" class="underline">(609) 242-0086</a>.</p>';
+          }
+        });
+    });
+  })();
+</script>

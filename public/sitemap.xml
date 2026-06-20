@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://agapenj.org/</loc>
+    <changefreq>monthly</changefreq>
+    <priority>1.0</priority>
+  </url>
+</urlset>
+<!--
+  This file is committed as a fallback. The authoritative sitemap is
+  generated at build time by @astrojs/sitemap and emitted to dist/.
+  See astro.config.mjs.
+
+  When Phase 2 adds routes (e.g., /blog/* or /services/[slug]), delete
+  this file and let the sitemap integration own the output.
+-->

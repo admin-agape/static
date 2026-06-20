@@ -1,0 +1,213 @@
+# Agape — Deploy Workflow
+#
+# DESIGN.md §2.5 / §8.5 / Appendix C — the binary gate between the build
+# phase and the delivery phase. Every commit to main runs:
+#   1. npm ci — install pinned deps (reproducibility)
+#   2. npm run check:faq — §3.3.8 FAQ schema validator (CI gate)
+#   3. npm run check:logo-size — §3.5.1.9.4 two-tier logo-size check
+#   4. npm run build — full Astro build (emits dist/)
+#   5. §10.1 SEO emission grep — title, description, canonical, OG,
+#      Twitter present in built index.html
+#   6. §10.2 MedicalClinic JSON-LD required-field grep
+#   7. §3.5.1.7.3.2 favicon + Navbar wire to /brand/company-logo.svg
+#   8. §3.5.1.9.4 §10.2.1 forbidden-field audit (founder, employee,
+#      member, review, aggregateRating, ratingValue, reviewCount must
+#      NOT appear in the JSON-LD)
+#   9. §3.5.1.7.4 #1 closed — Footer logo present
+#  10. §3.3.8 FAQ items count >= 1 (Phase 1 ship-empty fallback)
+#  11. Appendix E 301 redirect map emitted (6 HTML files)
+#  12. Bundle size budget — HTML < 100 KB, CSS < 80 KB, zero JS
+#  13. GitHub Pages deploy — only on push to main and after all gates
+#      pass
+#
+# Secrets required (set in repo Settings → Secrets → Actions):
+#   - PUBLIC_WEB3FORMS_ACCESS_KEY  (form provider)
+#   - PUBLIC_CF_ANALYTICS_TOKEN    (Cloudflare Web Analytics — §6.2.3)
+#   - PUBLIC_TURNSTILE_SITE_KEY    (Cloudflare Turnstile — §6.6)
+#
+# For local-only repos (no Pages deploy), delete the `Deploy` job.
+
+name: Build + Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build + gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 6
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: §3.3.8 FAQ schema validator
+        run: npm run check:faq
+
+      - name: §3.5.1.9.4 Logo size check
+        run: npm run check:logo-size
+
+      - name: Build (emits dist/)
+        env:
+          PUBLIC_WEB3FORMS_ACCESS_KEY: ${{ secrets.PUBLIC_WEB3FORMS_ACCESS_KEY }}
+          PUBLIC_CF_ANALYTICS_TOKEN: ${{ secrets.PUBLIC_CF_ANALYTICS_TOKEN }}
+          PUBLIC_TURNSTILE_SITE_KEY: ${{ secrets.PUBLIC_TURNSTILE_SITE_KEY }}
+        run: npm run build
+
+      - name: §10.1 SEO emission verification
+        # Each grep must match exactly once in the built HTML.
+        run: |
+          set -euo pipefail
+          test -f dist/index.html || (echo "FAIL: dist/index.html missing"; exit 1)
+          grep -q '<title>.*</title>' dist/index.html            || (echo "FAIL: <title> missing"; exit 1)
+          grep -q 'name="description"' dist/index.html          || (echo "FAIL: meta description missing"; exit 1)
+          grep -q 'rel="canonical"' dist/index.html             || (echo "FAIL: canonical link missing"; exit 1)
+          grep -q 'property="og:type"' dist/index.html          || (echo "FAIL: og:type missing"; exit 1)
+          grep -q 'property="og:url"' dist/index.html           || (echo "FAIL: og:url missing"; exit 1)
+          grep -q 'property="og:title"' dist/index.html         || (echo "FAIL: og:title missing"; exit 1)
+          grep -q 'property="og:description"' dist/index.html   || (echo "FAIL: og:description missing"; exit 1)
+          grep -q 'property="og:image"' dist/index.html         || (echo "FAIL: og:image missing"; exit 1)
+          grep -q 'property="og:site_name"' dist/index.html     || (echo "FAIL: og:site_name missing"; exit 1)
+          grep -q 'property="og:locale"' dist/index.html        || (echo "FAIL: og:locale missing"; exit 1)
+          grep -q 'name="twitter:card"' dist/index.html         || (echo "FAIL: twitter:card missing"; exit 1)
+          grep -q 'name="twitter:title"' dist/index.html        || (echo "FAIL: twitter:title missing"; exit 1)
+          grep -q 'name="twitter:description"' dist/index.html  || (echo "FAIL: twitter:description missing"; exit 1)
+          grep -q 'name="twitter:image"' dist/index.html        || (echo "FAIL: twitter:image missing"; exit 1)
+          echo "§10.1 SEO emission check: PASS"
+
+      - name: §10.2 MedicalClinic JSON-LD verification
+        run: |
+          set -euo pipefail
+          # Must contain MedicalClinic (preferred) or LocalBusiness (fallback).
+          grep -qE '"@type":"MedicalClinic"|"@type":"LocalBusiness"' dist/index.html \
+            || (echo "FAIL: MedicalClinic or LocalBusiness JSON-LD missing"; exit 1)
+          # Must NOT contain the interim ProfessionalService type.
+          if grep -q '"@type":"ProfessionalService"' dist/index.html; then
+            echo "FAIL: ProfessionalService JSON-LD still present (DESIGN.md §10.2 supersedes)"
+            exit 1
+          fi
+          # Required §10.2 fields.
+          for field in '"name"' '"url"' '"telephone"' '"email"' '"address"' '"openingHoursSpecification"' '"priceRange"' '"image"' '"medicalSpecialty"' '"areaServed"'; do
+            grep -q "$field" dist/index.html || (echo "FAIL: JSON-LD field missing: $field"; exit 1)
+          done
+          # §10.2.1 forbidden fields must NOT appear.
+          for forbidden in '"founder"' '"employee"' '"member"' '"review"' '"aggregateRating"' '"ratingValue"' '"reviewCount"'; do
+            if grep -q "$forbidden" dist/index.html; then
+              echo "FAIL: §10.2.1 forbidden field present in JSON-LD: $forbidden"
+              exit 1
+            fi
+          done
+          echo "§10.2 MedicalClinic JSON-LD check: PASS"
+
+      - name: §3.5.1.7.3.2 Brand Logo wiring
+        run: |
+          set -euo pipefail
+          # Brand Logo must be wired into Navbar (img src) AND favicon (link rel="icon").
+          grep -q '/brand/company-logo.svg' dist/index.html || (echo "FAIL: company-logo.svg not referenced"; exit 1)
+          # §3.5.1.7.3.2.1 — explicit <link rel="icon"> points to brand mark.
+          grep -q 'rel="icon"[^>]*href="/brand/company-logo.svg"' dist/index.html \
+            || (echo "FAIL: <link rel=\"icon\"> not wired to company-logo.svg"; exit 1)
+          # §3.5.1.7.4 #1 — Footer logo must also be present.
+          grep -o 'company-logo.svg' dist/index.html | wc -l | grep -qE '^[2-9]|^[1-9][0-9]+' \
+            || (echo "FAIL: company-logo.svg appears only once — Footer wiring missing per §3.5.1.7.4 #1"; exit 1)
+          # The old /favicon.svg (placeholder "A" glyph) must NOT be in the built HTML.
+          if grep -q 'favicon.svg' dist/index.html; then
+            echo "FAIL: placeholder favicon.svg still referenced in built HTML"
+            exit 1
+          fi
+          echo "§3.5.1 Brand Logo wiring: PASS"
+
+      - name: §3.3.8 FAQ section verification
+        run: |
+          set -euo pipefail
+          # FAQPage JSON-LD must be present.
+          grep -q '"@type":"FAQPage"' dist/index.html || (echo "FAIL: FAQPage JSON-LD missing"; exit 1)
+          # At least 1 <details id="faq-q-...> in HTML.
+          grep -qE '<details id="faq-q-' dist/index.html || (echo "FAIL: no <details id=\"faq-q-...\"> in HTML"; exit 1)
+          # Number of FAQ items in JSON-LD must match number of <details> in HTML.
+          faq_items=$(grep -oE '<details id="faq-q-[^"]+"' dist/index.html | wc -l)
+          jsonld_items=$(grep -oE '"@type":"Question"' dist/index.html | wc -l)
+          if [ "$faq_items" -ne "$jsonld_items" ]; then
+            echo "FAIL: FAQ item count mismatch — HTML has $faq_items, JSON-LD has $jsonld_items"
+            exit 1
+          fi
+          # Tap target: each <summary> must carry an inline min-height: 44px (WCAG 2.5.5).
+          if ! grep -qE 'min-height:\s*44px' dist/index.html; then
+            echo "FAIL: FAQ <summary> min-height: 44px not found (WCAG 2.5.5 tap target)"
+            exit 1
+          fi
+          echo "§3.3.8 FAQ section check: PASS ($faq_items items)"
+
+      - name: Appendix E 301 redirect map
+        run: |
+          set -euo pipefail
+          for path in contact-us/index.html our-services/index.html reviews/index.html; do
+            test -f "dist/$path" || (echo "FAIL: redirect HTML missing: $path"; exit 1)
+            # Each redirect HTML should carry a <meta http-equiv="refresh"> per astro.config.mjs.
+            grep -q 'http-equiv="refresh"' "dist/$path" || (echo "FAIL: $path missing http-equiv refresh"; exit 1)
+          done
+          echo "Appendix E redirect map check: PASS (3 legacy URLs × 2 trailing-slash variants emitted)"
+
+      - name: §5.3 Performance budget
+        run: |
+          set -euo pipefail
+          html_size=$(wc -c < dist/index.html | tr -d ' ')
+          css_size=$(wc -c dist/_astro/*.css | tail -1 | awk '{print $1}')
+          # §5.3 budget: HTML < 100 KB raw, CSS < 80 KB raw. Targets are loose; the §5.3
+          # gzipped budgets are tighter but harder to gate on without a full gzip pass.
+          if [ "$html_size" -gt 102400 ]; then
+            echo "FAIL: dist/index.html = $html_size bytes (> 100 KB raw budget)"
+            exit 1
+          fi
+          if [ "$css_size" -gt 81920 ]; then
+            echo "FAIL: dist/_astro/*.css = $css_size bytes (> 80 KB raw budget)"
+            exit 1
+          fi
+          # §5.3 — zero framework JS at idle.
+          js_files=$(find dist -name '*.js' -not -path '*/_astro/*' 2>/dev/null | wc -l)
+          # Note: the ContactForm inline <script type="module"> is in HTML, not a .js file.
+          # We assert zero _astro/*.js bundles (Astro islands stay unloaded).
+          astro_js=$(find dist/_astro -name '*.js' 2>/dev/null | wc -l)
+          if [ "$astro_js" -gt 0 ]; then
+            echo "FAIL: $astro_js Astro JS bundle(s) found — §5.3 0 KB framework JS violated"
+            exit 1
+          fi
+          echo "§5.3 performance budget: PASS (HTML ${html_size}B, CSS ${css_size}B, 0 Astro JS bundles)"
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+
+# Appendix E legacy URLs are served via meta-refresh static HTML
+# (Astro redirects config). Search engines treat these as 301-equivalent
+# for ranking continuity. They resolve to the home anchors in <1s.
+# No Disallow rules — there is nothing on this site we want hidden
+# from indexing. The 42 CFR Part 2 compliance posture is enforced by
+# absence of clinical content, not by robots.txt exclusion.
+
+Sitemap: https://agapenj.org/sitemap.xml

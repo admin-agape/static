@@ -1,0 +1,33 @@
+{
+  "name": "agape",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Agape Counseling Services — static rebuild (Astro 4 + Tailwind 3 + DaisyUI 4, hosted on GitHub Pages)",
+  "scripts": {
+    "dev": "astro dev",
+    "start": "astro dev",
+    "build": "npm run check:faq && npm run check:logo-size && astro build",
+    "preview": "astro preview",
+    "astro": "astro",
+    "check": "npm run check:faq && npm run check:logo-size && astro check",
+    "check:faq": "node scripts/check-faq.mjs",
+    "check:logo-size": "bash scripts/check-logo-size.sh",
+    "generate:og-card": "node scripts/generate-og-card.mjs"
+  },
+  "dependencies": {
+    "@astrojs/check": "^0.9.4",
+    "@astrojs/sitemap": "^3.7.3",
+    "@astrojs/tailwind": "^6.0.2",
+    "astro": "^4.16.19",
+    "daisyui": "^4.12.24",
+    "tailwindcss": "^3.4.19"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "sharp": "^0.35.1",
+    "svgo": "^4.0.1",
+    "typescript": "^5.6.3"
+  }
+}

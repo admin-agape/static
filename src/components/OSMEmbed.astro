@@ -1,0 +1,57 @@
+---
+/**
+ * Agape — OSM embed shell
+ *
+ * DESIGN.md §3.3.6 — OpenStreetMap iframe replaces the legacy Google Maps
+ * JS API (which had an exposed billing key and a tracking surface).
+ *
+ * OSM's `export/embed.html` is a plain iframe endpoint with no JS, no
+ * API key, no tracking. The `marker` parameter centres the pin on the
+ * facility address and the `bbox` parameter zooms appropriately.
+ *
+ * Coordinates for Agape: 815 U.S. 9, Lanoka Harbor, NJ 08734.
+ * Bbox is in [W, S, E, N] order (degrees); the marker is {lat},{lng}.
+ *
+ * No client-side JS — the iframe is purely declarative HTML.
+ */
+
+interface Props {
+  /** Override the iframe src. Defaults to Agape's facility location. */
+  src?: string;
+  /** Title attribute for screen-reader accessibility. */
+  title?: string;
+  /** Width/height of the iframe in pixels (responsive via CSS). */
+  height?: number;
+}
+
+const {
+  src = 'https://www.openstreetmap.org/export/embed.html?bbox=-74.2820%2C39.8580%2C-74.2680%2C39.8700&layer=mapnik&marker=39.8640%2C-74.2750',
+  title = 'Map showing Agape Counseling Services at 815 U.S. 9, Lanoka Harbor, NJ 08734',
+  height = 320,
+} = Astro.props;
+---
+
+{/*
+  WCAG 2.1 AA §2.4.1 / §4.1.2 — the iframe has a meaningful title and
+  a noscript fallback link to the OSM page in case iframes are blocked
+  by a corporate content policy.
+*/}
+<div class="overflow-hidden rounded-soft border border-base-300 bg-base-200">
+  <iframe
+    src={src}
+    title={title}
+    width="100%"
+    height={height}
+    class="block w-full"
+    loading="lazy"
+    referrerpolicy="no-referrer-when-downgrade"
+    sandbox="allow-scripts allow-same-origin"
+  ></iframe>
+  <noscript>
+    <p class="p-3 text-sm">
+      <a href="https://www.openstreetmap.org/?mlat=39.8640&mlon=-74.2750#map=17/39.8640/-74.2750" class="text-primary underline">
+        View Agape on OpenStreetMap
+      </a>
+    </p>
+  </noscript>
+</div>

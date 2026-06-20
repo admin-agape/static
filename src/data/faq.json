@@ -1,0 +1,55 @@
+{
+  "$schema": "./faq.schema.json",
+  "items": [
+    {
+      "id": "faq-q-medicaid",
+      "question": "Do you accept Medicaid?",
+      "answer": "Yes. We accept Medicaid and most major insurance plans. We also offer options for uninsured individuals and same-week intake. Call (609) 242-0086 to confirm your specific plan and to schedule an intake."
+    },
+    {
+      "id": "faq-q-iop-length",
+      "question": "How long is the IOP program?",
+      "answer": "The Intensive Outpatient Program runs three evenings per week with a weekly 30-minute individual session. Length depends on clinical need; most participants complete the program in 8–12 weeks. We will work with you on the timeline that fits your recovery."
+    },
+    {
+      "id": "faq-q-evenings",
+      "question": "Do you offer evening hours?",
+      "answer": "Yes. We are open Monday through Friday, 9:00 AM to 9:00 PM, and our IOP groups typically meet in the evening so people can attend around work or family schedules. Weekend sessions are by appointment."
+    },
+    {
+      "id": "faq-q-bilingual",
+      "question": "Do you offer services in Spanish?",
+      "answer": "Yes — we offer bilingual services. Call us at (609) 242-0086 and let us know you would prefer Spanish; we will match you with a Spanish-speaking clinician."
+    },
+    {
+      "id": "faq-q-first-session",
+      "question": "Is the first session free?",
+      "answer": "Your first contact is a free, confidential phone call with our intake team — no commitment, no charge. If you decide to move forward, we schedule a clinical assessment at our standard rate. Many insurance plans cover the assessment. Call (609) 242-0086 to start."
+    },
+    {
+      "id": "faq-q-adolescents",
+      "question": "Do you see adolescents?",
+      "answer": "Our primary programs serve adults. If you are looking for adolescent substance use services, call us at (609) 242-0086 and we will refer you to an appropriate partner program in Ocean County."
+    },
+    {
+      "id": "faq-q-transportation",
+      "question": "Do you provide transportation?",
+      "answer": "We do not provide transportation directly, but our office is on U.S. Route 9 in Lanoka Harbor with easy access from Ocean County. Call (609) 242-0086 if transportation is a barrier — we will help you think through options including public transit, family support, and community resources."
+    },
+    {
+      "id": "faq-q-anger-management",
+      "question": "Is your anger management program state-approved?",
+      "answer": "Yes. Our anger management program is state-approved and includes trigger identification, healthy communication, and optional reiki and mindfulness components. Call (609) 242-0086 for current group availability and court / referral paperwork."
+    },
+    {
+      "id": "faq-q-impaired-driving",
+      "question": "Do you work with NJ DOT referrals for impaired driving?",
+      "answer": "Yes — we are an NJ DOT–approved provider for impaired-driver counseling. Call (609) 242-0086 with your referral paperwork in hand; we will explain the steps, schedule your intake, and confirm the program length required by your case."
+    },
+    {
+      "id": "faq-q-wait-list",
+      "question": "Is there a wait list?",
+      "answer": "No. We offer same-week intake for most programs. Call (609) 242-0086 today — if we cannot see you this week, we will tell you on the phone and help you find a faster path to care."
+    }
+  ]
+}
