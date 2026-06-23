@@ -53,6 +53,9 @@ async function storeBlog(payload, env) {
 export const onRequestPost = createCloudflareWorker({
   envToConfig: (env) => ({
     publicKeyPem: env.MOPHEUS_CODE_PUBLIC_KEY ?? '',
+    publicKeyId: env.MOPHEUS_CODE_PUBLIC_KEY_ID ?? '',
+    fallbackPublicKeyUrl:
+      env.MOPHEUS_CODE_PUBLIC_KEY_FALLBACK_URL ?? '',
     demoBearer: env.MOPHEUS_CODE_DEMO_BEARER ?? '',
     expectedSlug: env.MOPHEUS_CODE_CLIENT_SLUG ?? '',
     expectedSiteUrl: env.MOPHEUS_CODE_SITE_URL ?? '',

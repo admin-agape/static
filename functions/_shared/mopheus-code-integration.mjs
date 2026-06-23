@@ -13,27 +13,35 @@
 //   - Deno
 //
 // The module exports:
-//   - `verifyBearer({ publicKeyPem, demoBearer, expectedSlug, expectedSiteUrl })`
+//   - `verifyBearer({ publicKeyPem, publicKeyId, fallbackPublicKeyUrl,
+//     demoBearer, expectedSlug, expectedSiteUrl, fetchFn })`
 //     → middleware-style function: `(request) -> Promise<{ ok, reason? }>`
 //   - `handleBlogPost({ storeBlog })` → request handler
 //   - `handleNewsletterSubscribe({ addSubscriber })` → request handler
-//   - `createIntegrationEndpoints({ publicKeyPem, demoBearer, expectedSlug,
-//     expectedSiteUrl, storeBlog, addSubscriber })`
-//     → { verifyBearer, handleBlogPost, handleNewsletterSubscribe }
-//   - `createExpressRouter(...)` → Express router (Node 20+ only)
 //   - `createCloudflareWorker(...)` → { fetch } handler
+//   - `createExpressRouter(...)` → Express router (Node 20+ only)
 //
 // SECURITY POSTURE
 // ----------------
 // - The bearer is per-bot: HKDF-SHA256 over (signature_bytes, site_url,
 //   "mopheus-code-site-{client_slug}", 32 bytes). A leak from one bot
 //   does not compromise another.
-// - The demo bearer is per-site: configured by the operator (you).
-//   When the site is in production, leave MOPHEUS_CODE_DEMO_BEARER
-//   empty — only RS256 HKDF verification will succeed.
 // - The X-Mopheus-Code-Promo header is required for RS256 verification.
-//   It's the original signed promo JWT the client pasted into
-//   build-a-bot; build-a-bot re-derives the HKDF from the signature.
+//   It's the original signed promo JWT build-a-bot signed on the fly
+//   via the connect endpoint.
+// - Key resolution is **kid-aware**:
+//     - Primary: the inline PEM in `MOPHEUS_CODE_PUBLIC_KEY`. If it
+//       carries a `kid` (in `MOPHEUS_CODE_PUBLIC_KEY_ID`) and that
+//       kid matches the JWT header's `kid`, we use it. Lightning-fast,
+//       zero work per request.
+//     - Fallback: if the inline PEM's kid doesn't match the JWT's
+//       kid (or the inline PEM is missing), we fetch the current
+//       public key from `MOPHEUS_CODE_PUBLIC_KEY_FALLBACK_URL`
+//       (default `https://mophe.us/.well-known/mopheus-code-promo.pub`)
+//       and cache it in memory by `kid`. Auto-recovers from key
+//       rotation without redeploying the site.
+// - The demo bearer is an undocumented testing escape hatch. Leave
+//   `MOPHEUS_CODE_DEMO_BEARER` empty in production.
 // - All endpoints log to `console.info` / `console.warn`. The bearer
 //   is NEVER logged.
 
@@ -107,6 +115,140 @@ function toB64Url(bytes) {
   return btoaImpl(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 }
 
+// ── Key ID (kid) derivation ───────────────────────────────────────────────
+
+/** Strip PEM armor and decode the SPKI body to raw DER bytes. */
+function pemToDer(pem) {
+  const b64 = pem
+    .replace(/-----BEGIN [^-]+-----/g, '')
+    .replace(/-----END [^-]+-----/g, '')
+    .replace(/\s+/g, '');
+  return Uint8Array.from(atobImpl(b64), (c) => c.charCodeAt(0));
+}
+
+/** Compute the key id (`kid`) for a PEM-encoded public key:
+ *    kid = first 16 hex chars of SHA-256(DER(public_key))
+ *  This matches what the build-a-bot backend puts in the JWT header
+ *  when it signs on the fly via the `/integrations/mopheus-code/connect`
+ *  endpoint. The kid is content-addressed — rotating the keypair
+ *  produces a different kid. */
+export async function computeKeyIdFromPem(pem) {
+  const der = pemToDer(pem);
+  const hash = await subtle.digest('SHA-256', der);
+  const bytes = new Uint8Array(hash).slice(0, 8);
+  let hex = '';
+  for (let i = 0; i < bytes.length; i++) {
+    hex += bytes[i].toString(16).padStart(2, '0');
+  }
+  return hex;
+}
+
+// ── Fallback key cache (in-memory, per `kid`) ────────────────────────────
+
+const DEFAULT_FALLBACK_PUBLIC_KEY_URL =
+  'https://mophe.us/.well-known/mopheus-code-promo.pub';
+const FALLBACK_CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
+/** Module-level cache: kid → { pem, fetchedAt }. Cleared on Worker
+ *  restart. Memory cost is one PEM per kid — typically <2 KB. */
+const fallbackKeyCache = new Map();
+
+/** Test-only escape hatch: clear the in-memory fallback cache. */
+export function _clearFallbackKeyCache() {
+  fallbackKeyCache.clear();
+}
+
+/** Resolve which public key to use for verification.
+ *  Returns:
+ *    { ok: true, pem, source } on success
+ *    { ok: false, reason } on failure
+ *  Sources: 'inline_match' | 'inline_no_kid' | 'fallback_cache' | 'fallback_fetch'
+ *
+ *  `fallbackUrl` is opt-in: pass an empty string / undefined to
+ *  disable the fetch path entirely (kid mismatch then becomes a
+ *  hard `key_id_mismatch` failure). The default `mophe.us` URL is
+ *  only consulted if `fallbackUrl` is explicitly set to that value.
+ */
+export async function resolvePublicKey({
+  jwtKid,
+  inlinePem,
+  inlineKeyId,
+  fallbackUrl,
+  fetchFn,
+}) {
+  // ── Case A: no `kid` in the JWT (backward compat). ───────────────
+  // Pre-kid JWTs only used the inline PEM — there was no rotation
+  // story. We preserve that path so existing deployments keep working
+  // while new ones adopt the kid-aware flow.
+  if (!jwtKid) {
+    if (inlinePem) return { ok: true, pem: inlinePem, source: 'inline_no_kid' };
+    return { ok: false, reason: 'no_public_key' };
+  }
+
+  // ── Case B: inline PEM with matching `kid`. ──────────────────────
+  // Fast path: zero HTTP, zero crypto, zero allocation per request.
+  if (inlinePem) {
+    const computedInlineKid =
+      inlineKeyId ?? (await computeKeyIdFromPem(inlinePem));
+    if (computedInlineKid === jwtKid) {
+      return { ok: true, pem: inlinePem, source: 'inline_match' };
+    }
+  }
+
+  // ── Case C: kid mismatch (or no inline PEM) → fetch from fallback. ─
+  // This is the auto-recovery path: when the dev rotates the keypair
+  // and signs new JWTs, sites with the old inline PEM in env still
+  // verify because the new key is fetched here. Opt-in via
+  // `fallbackUrl` — set MOPHEUS_CODE_PUBLIC_KEY_FALLBACK_URL to
+  // enable. Empty/undefined disables the path.
+  if (!fallbackUrl) {
+    return { ok: false, reason: 'key_id_mismatch', jwtKid };
+  }
+
+  const cached = fallbackKeyCache.get(jwtKid);
+  if (cached && Date.now() - cached.fetchedAt < FALLBACK_CACHE_TTL_MS) {
+    return { ok: true, pem: cached.pem, source: 'fallback_cache' };
+  }
+
+  const doFetch = fetchFn ?? ((u) => fetch(u));
+  let res;
+  try {
+    res = await doFetch(fallbackUrl);
+  } catch (err) {
+    return {
+      ok: false,
+      reason: 'fallback_fetch_failed',
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+  if (!res.ok) {
+    return {
+      ok: false,
+      reason: 'fallback_fetch_failed',
+      status: res.status,
+    };
+  }
+  const pem = await res.text();
+  if (!pem.includes('BEGIN PUBLIC KEY')) {
+    return {
+      ok: false,
+      reason: 'fallback_invalid_pem',
+      bytes: pem.length,
+    };
+  }
+  const fetchedKid = await computeKeyIdFromPem(pem);
+  if (fetchedKid !== jwtKid) {
+    return {
+      ok: false,
+      reason: 'fallback_key_id_mismatch',
+      expected: jwtKid,
+      got: fetchedKid,
+    };
+  }
+  fallbackKeyCache.set(jwtKid, { pem, fetchedAt: Date.now() });
+  return { ok: true, pem, source: 'fallback_fetch' };
+}
+
 // ── Bearer verification ────────────────────────────────────────────────────
 
 /**
@@ -120,13 +262,25 @@ function toB64Url(bytes) {
  * The `expectedSlug` + `expectedSiteUrl` parameters are the values
  * baked into this site's deployment — they're the "is this the right
  * promo for THIS site?" check.
+ *
+ * Key resolution is kid-aware:
+ *   - `publicKeyPem` (inline) is the primary key. If `publicKeyId`
+ *     is also set and matches the JWT header's `kid`, the inline
+ *     PEM is used directly (zero HTTP per request).
+ *   - On `kid` mismatch or missing inline PEM, the module fetches
+ *     from `fallbackPublicKeyUrl` (default mophe.us) and caches
+ *     by `kid` for an hour. This is the auto-recovery path on key
+ *     rotation.
  */
 export async function verifyBearer({
   request,
   publicKeyPem,
+  publicKeyId,
+  fallbackPublicKeyUrl,
   demoBearer,
   expectedSlug,
   expectedSiteUrl,
+  fetchFn,
 }) {
   const authHeader = request.authorization ?? '';
   if (!authHeader.startsWith('Bearer ')) {
@@ -135,17 +289,13 @@ export async function verifyBearer({
   const bearer = authHeader.slice('Bearer '.length);
 
   // ── Path 1: demo bearer (testing access) ────────────────────────────
-  // The demo bearer is the operator's per-site static token. It's
-  // a no-strings-attached escape hatch for the "unwired paywall"
-  // phase: Mopheus Code ships a site with MOPHEUS_CODE_DEMO_BEARER
-  // set, the client tests with it, and when billing is wired the
-  // operator unsets the demo bearer and the site rejects all non-
-  // HKDF matches.
+  // Undocumented escape hatch for local testing. Production sites
+  // leave MOPHEUS_CODE_DEMO_BEARER empty.
   if (demoBearer && timingSafeEqualStr(bearer, demoBearer)) {
     return { ok: true, mode: 'demo_bearer' };
   }
 
-  // ── Path 2: RS256 + HKDF ─────────────────────────────────────────────
+  // ── Path 2: RS256 + HKDF (kid-aware key resolution) ───────────────
   const promoJwt = request.xMopheusCodePromo;
   if (!promoJwt) {
     return { ok: false, reason: 'missing_promo' };
@@ -183,10 +333,28 @@ export async function verifyBearer({
     return { ok: false, reason: 'expired_promo' };
   }
 
-  // Verify the RS256 signature against the published public key.
+  // ── Resolve which public key to use (kid-aware). ───────────────────
+  const resolution = await resolvePublicKey({
+    jwtKid: typeof header.kid === 'string' ? header.kid : undefined,
+    inlinePem: publicKeyPem || undefined,
+    inlineKeyId: publicKeyId || undefined,
+    fallbackUrl: fallbackPublicKeyUrl,
+    fetchFn,
+  });
+  if (!resolution.ok) {
+    return {
+      ok: false,
+      reason: resolution.reason,
+      ...(resolution.expected ? { expected_kid: resolution.expected } : {}),
+      ...(resolution.got ? { got_kid: resolution.got } : {}),
+      ...(resolution.error ? { error: resolution.error } : {}),
+    };
+  }
+
+  // Verify the RS256 signature against the resolved public key.
   let publicKey;
   try {
-    publicKey = await importRsaPublicKey(publicKeyPem);
+    publicKey = await importRsaPublicKey(resolution.pem);
   } catch (err) {
     return { ok: false, reason: 'invalid_public_key', error: String(err) };
   }
@@ -213,7 +381,12 @@ export async function verifyBearer({
     return { ok: false, reason: 'invalid_bearer' };
   }
 
-  return { ok: true, mode: 'rs256_hkdf', clientSlug: payload.client_slug };
+  return {
+    ok: true,
+    mode: 'rs256_hkdf',
+    clientSlug: payload.client_slug,
+    key_source: resolution.source,
+  };
 }
 
 // ── Body parsing ──────────────────────────────────────────────────────────
@@ -351,6 +524,8 @@ export async function handleNewsletterSubscribe({
  *   app.use(express.json({ limit: '128kb' }));
  *   app.use(createExpressRouter({
  *     publicKeyPem: process.env.MOPHEUS_CODE_PUBLIC_KEY,
+ *     publicKeyId: process.env.MOPHEUS_CODE_PUBLIC_KEY_ID,
+ *     fallbackPublicKeyUrl: process.env.MOPHEUS_CODE_PUBLIC_KEY_FALLBACK_URL,
  *     demoBearer: process.env.MOPHEUS_CODE_DEMO_BEARER,
  *     expectedSlug: process.env.MOPHEUS_CODE_CLIENT_SLUG,
  *     expectedSiteUrl: process.env.MOPHEUS_CODE_SITE_URL,
@@ -360,6 +535,8 @@ export async function handleNewsletterSubscribe({
  */
 export function createExpressRouter({
   publicKeyPem,
+  publicKeyId,
+  fallbackPublicKeyUrl,
   demoBearer,
   expectedSlug,
   expectedSiteUrl,
@@ -370,6 +547,8 @@ export function createExpressRouter({
     verifyBearer({
       request,
       publicKeyPem,
+      publicKeyId,
+      fallbackPublicKeyUrl,
       demoBearer,
       expectedSlug,
       expectedSiteUrl,
@@ -433,9 +612,11 @@ export function createExpressRouter({
  *
  *   [vars]
  *   MOPHEUS_CODE_PUBLIC_KEY = "-----BEGIN PUBLIC KEY-----..."
+ *   MOPHEUS_CODE_PUBLIC_KEY_ID = "a1b2c3d4e5f6g7h8"   # optional, the kid of the inline PEM
+ *   MOPHEUS_CODE_PUBLIC_KEY_FALLBACK_URL = "https://mophe.us/.well-known/mopheus-code-promo.pub"   # optional, enables auto-recovery on key rotation
  *   MOPHEUS_CODE_CLIENT_SLUG = "agape"
  *   MOPHEUS_CODE_SITE_URL = "https://agapenj.org"
- *   # MOPHEUS_CODE_DEMO_BEARER is unset in production.
+ *   # MOPHEUS_CODE_DEMO_BEARER is unset in production (testing escape hatch).
  *
  * Usage in `src/index.ts`:
  *
@@ -444,6 +625,8 @@ export function createExpressRouter({
  *     fetch: createCloudflareWorker({
  *       envToConfig: (env) => ({
  *         publicKeyPem: env.MOPHEUS_CODE_PUBLIC_KEY,
+ *         publicKeyId: env.MOPHEUS_CODE_PUBLIC_KEY_ID,
+ *         fallbackPublicKeyUrl: env.MOPHEUS_CODE_PUBLIC_KEY_FALLBACK_URL,
  *         demoBearer: env.MOPHEUS_CODE_DEMO_BEARER,
  *         expectedSlug: env.MOPHEUS_CODE_CLIENT_SLUG,
  *         expectedSiteUrl: env.MOPHEUS_CODE_SITE_URL,
@@ -487,6 +670,8 @@ export function createCloudflareWorker({
       verifyBearer({
         request: r,
         publicKeyPem: config.publicKeyPem,
+        publicKeyId: config.publicKeyId,
+        fallbackPublicKeyUrl: config.fallbackPublicKeyUrl,
         demoBearer: config.demoBearer,
         expectedSlug: config.expectedSlug,
         expectedSiteUrl: config.expectedSiteUrl,
