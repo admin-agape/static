@@ -6,24 +6,46 @@
  * specified in §3.3. The page is wrapped by BaseLayout which supplies
  * the Navbar, Cloudflare Web Analytics beacon, and Footer.
  *
- * Phase 2 status: Hero, AccessBanner (inline), ServicesGrid, About
- * (inline with template copy), Testimonials (empty per §3.3.5), and
- * Contact (full Web3Forms + Turnstile wiring) are all rendered. The
- * About section is rendered inline because its content is template
- * copy pending §4.1 #6 client approval — extracting it to its own
- * component is a low-priority cleanup once the final copy lands.
+ * Tier gating (src/config/tiers.ts):
+ *   - The kitchen-sink config (src/config/site.ts) flips every feature
+ *     ON by default. Tier profile overlays flip the right flags OFF.
+ *   - Tier 1 reads `site.features.newsletter` as `false` → no newsletter
+ *     section, no /es/ page, no EN/ES link in the navbar. Tier 2/3 keep
+ *     those on.
+ *   - `import { site } from '~/config/site'` is a frozen merge of
+ *     kitchen-sink + tier profile + build context. Reading
+ *     `site.features.X` at the page level is the canonical gate.
  */
 import BaseLayout from '~/layouts/BaseLayout.astro';
 import Hero from '~/components/Hero.astro';
 import ServicesGrid from '~/components/ServicesGrid.astro';
 import Testimonials from '~/components/Testimonials.astro';
 import FAQ from '~/components/FAQ.astro';
+import Newsletter from '~/components/Newsletter.astro';
 import Contact from '~/components/Contact.astro';
+import { site } from '~/config/site';
+import { getCollection } from 'astro:content';
+
+// Per the demo orchestrator (`dev/site/scripts/build-all-demos.mjs`),
+// SITE_TIER is set to 1, 2, or 3 at build time. The hreflang URLs
+// must point at the CURRENT tier, not a hardcoded tier — otherwise
+// tier-3 (which is also bilingual) ships hreflang pointing at tier-2,
+// which is wrong: a French/German/etc crawler landing on tier-3 sees
+// "alternate en=es@2, es=es@2/es" and would never index tier-3 in the
+// bilingual cluster. Use the SITE_TIER env var directly so every
+// bilingual build (tier-2 and tier-3) self-references in its hreflang
+// set. Falls back to '2' so local dev (no env var set) stays sensible.
+const currentTier = process.env.SITE_TIER ?? '2';
+const baseDemoUrl = `https://demo.mophe.us/agape/tier-${currentTier}/`;
 ---
 
 <BaseLayout
   title="Agape Counseling Services — Outpatient SUD care in Lanoka Harbor, NJ"
   description="Outpatient substance use disorder counseling in Lanoka Harbor, NJ. Intensive outpatient program, individualized counseling, anger management, reiki and meditation. Bilingual. Medicaid accepted. No wait list."
+  hreflang={site.features.bilingual ? [
+    { lang: 'en', href: baseDemoUrl },
+    { lang: 'es', href: `${baseDemoUrl}es/` },
+  ] : []}
 >
   <Hero />
 
@@ -114,6 +136,55 @@ import Contact from '~/components/Contact.astro';
       Testimonials and Contact — the natural reading order (peer
       stories → questions → take action). */}
   <FAQ />
+
+  {site.features.newsletter && <Newsletter />}
+
+  {/*
+    §3.3.x Tier-3 feature surface — blog. The blog teaser is the
+    headline differentiator between the kitchen-sink tier (3) and
+    tier 2: long-form thought leadership content for SEO. The teaser
+    links to the full feature at /blog/.
+
+    Note: a multi-location teaser used to live next to the blog teaser.
+    Agape is a single-location practice (815 U.S. 9, Lanoka Harbor, NJ)
+    so the multi-location functionality has been removed from this
+    project entirely — see src/content/config.ts for the historical
+    note and the rationale. Do not re-add a locations teaser without
+    also re-evaluating the tier profile and the company switcher
+    marketing copy (dev/site/demos/companies.json).
+
+    Tier gating: the block reads site.features.blog — when the flag is
+    off (tier 1 / tier 2), the block is omitted entirely. The
+    orchestrator's tier cleanup also deletes the dist/<client>/tier-N/
+    blog/ directory on lower tiers so the URL 404s.
+  */}
+  {site.features.blog && (
+    <section class="bg-base-200 py-12 sm:py-16">
+      <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+        <a
+          href="/blog/"
+          class="group flex h-full flex-col rounded-soft border border-base-300 bg-base-100 p-6 shadow-sm transition-shadow hover:shadow-md"
+        >
+          <p class="text-sm font-semibold uppercase tracking-wide text-primary">
+            Insights from the team
+          </p>
+          <h2 class="mt-2 text-2xl font-semibold text-neutral">
+            Read the blog
+            <span aria-hidden="true" class="ml-1 transition-transform group-hover:translate-x-1">→</span>
+          </h2>
+          <p class="mt-3 text-base text-neutral/80">
+            Practical guides on IOP, family support, 42 CFR Part 2, and
+            navigating recovery in Ocean County.
+          </p>
+          <p class="mt-auto pt-4 text-sm text-neutral/80">
+            <span class="text-primary underline-offset-2 group-hover:underline">
+              Browse all posts
+            </span>
+          </p>
+        </a>
+      </div>
+    </section>
+  )}
 
   <Contact />
 </BaseLayout>

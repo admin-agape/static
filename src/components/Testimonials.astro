@@ -2,7 +2,7 @@
 /**
  * Agape — Testimonials section
  *
- * DESIGN.md §3.3.5 + §6.2.2 — the Phase 1 build ships WITHOUT any
+ * DESIGN.md §3.3.5 + §6.2.2 — the production build ships WITHOUT any
  * testimonials. This component is fully scaffolded so that:
  *
  *   1. The src/content/testimonials/ collection has its schema wired
@@ -12,14 +12,29 @@
  *      enforced rather than a written policy.
  *
  *   2. The conditional render pattern `{testimonials.length > 0 && (
- *      <section>...</section> )}` means that when the collection is
- *      empty, NO markup for the section appears in the rendered HTML.
- *      Zero compliance surface on launch.
+ *      <section>...</section> )}` means that when both the content
+ *      collection AND the demo data are empty, NO markup for the
+ *      section appears in the rendered HTML. Zero compliance surface
+ *      on launch.
  *
  *   3. Phase 2 path: the client obtains a 42 CFR §2.31-compliant
  *      consent, drops a signed `.md` file into
  *      src/content/testimonials/ with consent_date + consent_hash, and
  *      the next build automatically shows the section.
+ *
+ * DEMO mode (BUILD_TARGET=demo-N, e.g. demo-2): in addition to the
+ * (empty) content collection, this component ALSO reads from
+ * `src/data/demo-testimonials.json`. That JSON is rendered ONLY when
+ * the build target is a demo build, which is detected via the
+ * `BUILD_TARGET` env var. The demo entries are redacted samples of
+ * LOW/MEDIUM-risk legacy testimonials (see
+ * `docs/TESTIMONIAL-REVIEW.md` §1 + §3). Each demo entry renders with
+ * a small "Sample" badge so prospects can see the section is real
+ * social proof but the copy is redacted \u2014 not a sourced quote.
+ *
+ * Production builds (BUILD_TARGET=prod-N) NEVER touch demo-testimonials.json.
+ * The compliance posture is unchanged: only content-collection entries
+ * with a valid 42 CFR §2.31 consent hash make it to the production site.
  *
  * Implementation note: we use `import.meta.glob` to enumerate
  * testimonial files directly rather than `getCollection`. This avoids
@@ -30,23 +45,87 @@
  * See TESTIMONIAL-REVIEW.md for the Phase 2 prep worksheet.
  */
 import type { CollectionEntry } from 'astro:content';
+import demoData from '~/data/demo-testimonials.json';
+import { detectLocale, useTranslations } from '~/i18n';
 
+const locale = detectLocale(Astro.url.pathname);
+const translate = useTranslations(locale);
+const isDraft = locale !== 'en';
+
+// Phase 1 ships empty — verified at Pre-Demo Checklist item 9.
+// Production reads from the content collection ONLY.
+const modules = import.meta.glob<TestimonialModule>('../content/testimonials/*.md');
+const productionEntries = await Promise.all(
+  Object.entries(modules).map(async ([path, loader]) => {
+    const mod = await loader();
+    return { path, mod, source: 'production' as const };
+  }),
+);
+
+// Demo mode detection. The build script (scripts/build-demo.mjs in the
+// per-client repo, or build-all-demos.mjs in the dev platform) sets
+// BUILD_TARGET=demo-1|demo-2|demo-3 for every demo build. Anything
+// else (including unset, which is the local-dev fallback) is treated
+// as production.
+const buildTarget = (import.meta.env as { BUILD_TARGET?: string }).BUILD_TARGET ?? '';
+const isDemoBuild = /^demo-\d+$/.test(buildTarget);
+
+interface DemoTestimonial {
+  demo: true;
+  name: string;
+  service?: string;
+  quote: string;
+  redaction_notes: string;
+  anchored_on: string;
+}
+
+// Type assertion: the JSON file is hand-curated by the dev and the
+// shape is documented in the file's _comment block. Astro's JSON
+// import returns the literal types so we cast for safety.
+const demoTestimonials = ((demoData as { testimonials?: DemoTestimonial[] }).testimonials ?? []).filter(
+  (t): t is DemoTestimonial => t?.demo === true,
+);
+
+// Build the unified render list. In demo mode, demo entries come AFTER
+// any production entries so the sourced (real) content stays at the
+// top \u2014 the demo samples visually appear as additional content.
+const testimonials: TestimonialRender[] = [
+  ...productionEntries.map((e) => ({
+    source: 'production' as const,
+    name: e.mod.frontmatter.name,
+    service: e.mod.frontmatter.service,
+    quote: null, // production entries render markdown body, not a quote field
+    Content: e.mod.default,
+    anchored_on: null,
+  })),
+  ...(isDemoBuild
+    ? demoTestimonials.map((t) => ({
+        source: 'demo' as const,
+        name: t.name,
+        service: t.service,
+        quote: t.quote,
+        Content: null,
+        anchored_on: t.anchored_on,
+      }))
+    : []),
+];
+
+interface TestimonialRender {
+  source: 'production' | 'demo';
+  name: string;
+  service?: string;
+  quote: string | null;
+  Content: any;
+  anchored_on: string | null;
+}
+
+// Module shape for the production content-collection entries. Mirrors
+// the type the original component used.
 interface TestimonialModule {
   frontmatter: Omit<CollectionEntry<'testimonials'>['data'], never>;
   default: any;
   url: string;
 }
-
-const modules = import.meta.glob<TestimonialModule>('../content/testimonials/*.md');
-const entries = await Promise.all(
-  Object.entries(modules).map(async ([path, loader]) => {
-    const mod = await loader();
-    return { path, mod };
-  }),
-);
-
-// Phase 1 ships empty — verified at Pre-Demo Checklist item 9.
-const testimonials = entries;
 ---
 
 {testimonials.length > 0 && (
@@ -59,49 +138,76 @@ const testimonials = entries;
       <h2
         id="testimonials-heading"
         class="text-3xl font-bold tracking-tight text-neutral sm:text-4xl"
+        data-translation={isDraft ? 'draft' : undefined}
       >
-        What people say
+        {translate('testimonials.heading')}
       </h2>
-      <p class="mt-3 max-w-prose text-neutral/80">
-        With consent. Real first names only, no identifying details.
-        Every testimonial we publish is backed by a signed 42 CFR Part 2
-        authorization on file.
+      <p
+        class="mt-3 max-w-prose text-neutral/80"
+        data-translation={isDraft ? 'draft' : undefined}
+      >
+        {translate('testimonials.intro')}
       </p>
 
       <div class="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-        {testimonials.map(({ mod }) => {
-          const { frontmatter, default: Content } = mod;
-          return (
-            <article class="flex h-full flex-col rounded-soft border border-base-300 bg-base-200 p-6 shadow-sm">
-              <blockquote class="flex-1 text-neutral">
-                <p class="text-base leading-relaxed">
-                  <span aria-hidden="true" class="text-3xl text-primary">&ldquo;</span>
-                  <Content />
-                  <span aria-hidden="true" class="text-3xl text-primary">&rdquo;</span>
-                </p>
-              </blockquote>
-              <footer class="mt-4 border-t border-base-300 pt-4 text-sm">
-                <p class="font-semibold text-neutral">— {frontmatter.name}</p>
-                {frontmatter.service && (
-                  <p class="text-neutral/80">{frontmatter.service}</p>
+        {testimonials.map((t) => (
+          <article
+            class="flex h-full flex-col rounded-soft border border-base-300 bg-base-200 p-6 shadow-sm"
+            data-source={t.source}
+            {...(t.source === 'demo'
+              ? { 'data-redacted': 'true', title: `Demo sample \u2014 ${t.anchored_on ?? 'redacted'}` }
+              : {})}
+          >
+            <blockquote class="flex-1 text-neutral">
+              <p class="text-base leading-relaxed">
+                <span aria-hidden="true" class="text-3xl text-primary">&ldquo;</span>
+                {t.source === 'production' ? <t.Content /> : t.quote}
+                <span aria-hidden="true" class="text-3xl text-primary">&rdquo;</span>
+              </p>
+            </blockquote>
+            <footer class="mt-4 border-t border-base-300 pt-4 text-sm">
+              <div class="flex items-start justify-between gap-3">
+                <div>
+                  <p class="font-semibold text-neutral">\u2014 {t.name}</p>
+                  {t.service && (
+                    <p class="text-neutral/80">{t.service}</p>
+                  )}
+                </div>
+                {t.source === 'demo' && (
+                  <span
+                    class="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900 ring-1 ring-inset ring-amber-200"
+                    aria-label={translate('testimonials.sampleTitle')}
+                  >
+                    {translate('testimonials.sampleBadge')}
+                  </span>
                 )}
-              </footer>
-            </article>
-          );
-        })}
+              </div>
+            </footer>
+          </article>
+        ))}
       </div>
     </div>
   </section>
 )}
 
 {/*
-  When testimonials.length === 0 (Phase 1 launch state), this entire
-  block evaluates to nothing. No <section id="testimonials">, no
-  heading, no anchor target. The conditional render is the §3.3.5
-  structural guarantee.
+  When testimonials.length === 0 (both production collection AND demo
+  data empty \u2014 the "true" Phase 1 launch state), this entire block
+  evaluates to nothing. No <section id="testimonials">, no heading,
+  no anchor target. The conditional render is the §3.3.5 structural
+  guarantee.
 
   Verified at Pre-Demo Checklist item 9:
    - No Testimonials section appears on the live site at launch.
    - Dropping a sample .md file with valid frontmatter causes the
      section to appear on the next build.
+
+  Verified at Demo Testimonials plan (2026-06-21):
+   - On demo builds, the section also includes the 3 redacted samples
+     from src/data/demo-testimonials.json.
+   - On production builds, the JSON is NOT loaded into the render
+     list (gated by isDemoBuild check above).
+   - Each demo entry has data-redacted="true" so a future compliance
+     review can find + replace these with sourced content + 42 CFR
+     §2.31 consent before any production launch.
 */}

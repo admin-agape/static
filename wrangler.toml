@@ -1,0 +1,72 @@
+# wrangler.toml — Agape Counseling Services (Cloudflare Pages)
+#
+# Per DESIGN.md §11 (Hosting Architecture — Two-Phase Model) +
+# Appendix G.24 (v2.20.0 — demo platform ownership moved to ~/clients/dev/).
+#
+# **As of v2.20.0, this file covers Phase 2 ONLY** — the production
+# deploy target is `agape-counseling` (Pages project in the CLIENT'S
+# Cloudflare account). Phase 1 (the demo platform at demo.mophe.us) is
+# owned by the dev's `~/clients/dev/` project — see
+# `~/clients/dev/site/wrangler.toml` for that file, and
+# `~/clients/dev/docs-internal/DESIGN.md` §5 for the Pages project
+# metadata on the dev side.
+#
+# This file is used by:
+#   1. `wrangler pages dev` for local emulated dev (if you ever want it)
+#   2. The local `wrangler pages deploy ./dist` deploy workflow —
+#      reads `name` + `pages_build_output_dir` + `compatibility_date`
+#      from this file
+#
+# NOTE: wrangler.toml is OPTIONAL for Pages projects connected via the
+# Cloudflare Git integration — the integration reads project settings
+# from the Cloudflare dashboard. We keep this file as the local source
+# of truth for the project name + production branch.
+#
+# Per DESIGN.md §6.5 (Why Cloudflare) + §10.1 (Pre-build wiring).
+
+# === PRODUCTION PROJECT (Phase 2 — client's account) ================
+# Used for production deploys (npm run build:prod-N → wrangler deploy
+# --project-name=agape-counseling). Deploy:
+#   wrangler pages deploy dist --project-name=agape-counseling
+#
+# Lives in the client's Cloudflare account; transferred at handoff.
+name = "agape-counseling"
+compatibility_date = "2026-06-20"
+pages_build_output_dir = "./dist"
+
+# Production branch — Pages treats the latest commit on this branch as
+# the production deployment. PR previews and other branches get preview
+# URLs at <project>.pages.dev.
+# (Cloudflare also reads this from the dashboard; keep both in sync.)
+
+# === AUTO-DETECTED FILES ===========================================
+# Cloudflare Pages will auto-detect the following files at the root of
+# the uploaded bundle and respect them on deploy:
+#   _redirects   — URL redirects (per-request, NOT rewritten to disk)
+#   _headers     — Per-path HTTP headers (cache-control, security, etc.)
+# Add these to site/public/ and Astro will copy them into dist/ during
+# the build.
+
+# === CUSTOM DOMAINS ================================================
+# Custom domains are configured in the Cloudflare dashboard, NOT here.
+# At handoff: agapenj.org + www.agapenj.org point at the
+# agape-counseling Pages project via CNAME (apex uses Cloudflare CNAME
+# flattening automatically because Cloudflare is already the DNS
+# provider).
+
+# === DEMO DEPLOY TARGET (Phase 1 — dev's account) ==================
+# The demo deploy is NOT made from this repo anymore. The demo platform
+# is owned by ~/clients/dev/. To update the Agape demo, edit
+# ~/clients/dev/site/demos/manifest.json and deploy from there:
+#
+#   cd ~/clients/dev/site
+#   npm run validate:manifest --strict
+#   npm run build
+#   wrangler pages deploy dist --project-name=mophe-us-platform --branch=main
+#
+# Legacy deploy target (pre-v2.20.0) was:
+#   wrangler pages deploy dist --project-name=mophe-us-demos
+# ...which pointed at the older mophe-us-demos Pages project in the
+# dev's account. After the v2.20.0 platform migration completes (see
+# ~/clients/dev/docs-internal/DESIGN.md §5.4), mophe-us-demos is
+# decommissioned.

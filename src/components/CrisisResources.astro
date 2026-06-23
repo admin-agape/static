@@ -15,11 +15,15 @@
  *   - The phrase "In crisis?" must appear as a visible link above the
  *     fold on every page state.
  *
- * Content is the §6.1 template verbatim (subject to attorney review).
+ * Locale: all labels, descriptions, and supporting copy come from the
+ * i18n catalog. The phone numbers themselves stay as-is (they're
+ * identifiers, not translatable strings).
  */
+import { detectLocale, useTranslations } from '~/i18n';
 
-const phone = '(609) 242-0086';
-const phoneHref = 'tel:+16092420086';
+const locale = detectLocale(Astro.url.pathname);
+const translate = useTranslations(locale);
+const isDraft = locale !== 'en';
 ---
 
 <section
@@ -31,26 +35,36 @@ const phoneHref = 'tel:+16092420086';
     <h2
       id="crisis-heading"
       class="text-lg font-bold uppercase tracking-wide text-neutral"
+      data-translation={isDraft ? 'draft' : undefined}
     >
-      In crisis? Get help now.
+      {translate('crisis.heading')}
     </h2>
+    <p
+      class="mt-3 max-w-prose text-sm text-neutral/80"
+      data-translation={isDraft ? 'draft' : undefined}
+    >
+      {translate('crisis.body')}
+    </p>
 
     <div class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
       {/* 911 / ER */}
       <div class="flex h-full flex-col rounded-soft border border-base-300 bg-base-200 p-4">
-        <p class="text-sm font-semibold uppercase tracking-wide text-neutral/80">
-          Emergency
+        <p
+          class="text-sm font-semibold uppercase tracking-wide text-neutral/80"
+          data-translation={isDraft ? 'draft' : undefined}
+        >
+          {translate('crisis.911.label')}
         </p>
-        <p class="mt-2 text-base font-medium text-neutral">
-          If you are in immediate danger or experiencing a medical emergency:
-        </p>
-        <p class="mt-3 text-xs text-neutral/80">
-          Or go to your nearest emergency room.
+        <p
+          class="mt-2 text-base font-medium text-neutral"
+          data-translation={isDraft ? 'draft' : undefined}
+        >
+          {translate('crisis.911.detail')}
         </p>
         <p class="mt-auto pt-3">
           <a
             href="tel:911"
-            class="inline-flex h-12 w-full items-center justify-center rounded-soft bg-primary px-4 text-base font-semibold text-white"
+            class="inline-flex h-12 w-full items-center justify-center rounded-soft bg-primary px-4 text-base font-semibold text-primary-content"
           >
             Call 911
           </a>
@@ -59,51 +73,59 @@ const phoneHref = 'tel:+16092420086';
 
       {/* 988 — Suicide & Crisis Lifeline */}
       <div class="flex h-full flex-col rounded-soft border border-base-300 bg-base-200 p-4">
-        <p class="text-sm font-semibold uppercase tracking-wide text-neutral/80">
-          24/7 — Free, confidential
-        </p>
+        <p class="text-sm font-semibold uppercase tracking-wide text-neutral/80">24/7</p>
         <p class="mt-2 text-base font-semibold text-neutral">988</p>
-        <p class="mt-1 text-sm text-neutral/80">Suicide &amp; Crisis Lifeline (US)</p>
-        <p class="mt-3 text-xs text-neutral/80">
-          <a href="https://988lifeline.org/" rel="noopener noreferrer" class="underline">
-            988lifeline.org
-          </a>
+        <p
+          class="mt-1 text-sm text-neutral/80"
+          data-translation={isDraft ? 'draft' : undefined}
+        >
+          {translate('crisis.988.label')}
+        </p>
+        <p
+          class="mt-3 text-xs text-neutral/80"
+          data-translation={isDraft ? 'draft' : undefined}
+        >
+          {translate('crisis.988.detail')}
         </p>
         <p class="mt-auto pt-3">
           <a
             href="tel:988"
-            class="inline-flex h-12 w-full items-center justify-center rounded-soft bg-primary px-4 text-base font-semibold text-white"
+            class="inline-flex h-12 w-full items-center justify-center rounded-soft bg-primary px-4 text-base font-semibold text-primary-content"
           >
             Call 988
           </a>
         </p>
       </div>
 
-      {/* SAMHSA National Helpline */}
+      {/* NJ Hopeline */}
       <div class="flex h-full flex-col rounded-soft border border-base-300 bg-base-200 p-4">
-        <p class="text-sm font-semibold uppercase tracking-wide text-neutral/80">
-          24/7 — Free, confidential
+        <p class="text-sm font-semibold uppercase tracking-wide text-neutral/80">24/7 — NJ</p>
+        <p class="mt-2 text-base font-semibold text-neutral">1-855-654-6735</p>
+        <p
+          class="mt-1 text-sm text-neutral/80"
+          data-translation={isDraft ? 'draft' : undefined}
+        >
+          {translate('crisis.hopeline.label')}
         </p>
-        <p class="mt-2 text-base font-semibold text-neutral">1-800-662-4357</p>
-        <p class="mt-1 text-sm text-neutral/80">SAMHSA National Helpline</p>
-        <p class="mt-3 text-xs text-neutral/80">
-          English &amp; Spanish. SUD support.
+        <p
+          class="mt-3 text-xs text-neutral/80"
+          data-translation={isDraft ? 'draft' : undefined}
+        >
+          {translate('crisis.hopeline.detail')}
         </p>
         <p class="mt-auto pt-3">
           <a
-            href="tel:18006624357"
-            class="inline-flex h-12 w-full items-center justify-center rounded-soft bg-primary px-4 text-base font-semibold text-white"
+            href="tel:18556546735"
+            class="inline-flex h-12 w-full items-center justify-center rounded-soft bg-primary px-4 text-base font-semibold text-primary-content"
           >
-            Call SAMHSA
+            Call Hopeline
           </a>
         </p>
       </div>
 
-      {/* ReachNJ */}
+      {/* ReachNJ (NJ-specific SUD access) */}
       <div class="flex h-full flex-col rounded-soft border border-base-300 bg-base-200 p-4">
-        <p class="text-sm font-semibold uppercase tracking-wide text-neutral/80">
-          24/7 — NJ residents
-        </p>
+        <p class="text-sm font-semibold uppercase tracking-wide text-neutral/80">NJ residents</p>
         <p class="mt-2 text-base font-semibold text-neutral">1-844-732-2465</p>
         <p class="mt-1 text-sm text-neutral/80">ReachNJ</p>
         <p class="mt-3 text-xs text-neutral/80">
@@ -112,21 +134,12 @@ const phoneHref = 'tel:+16092420086';
         <p class="mt-auto pt-3">
           <a
             href="tel:18447322465"
-            class="inline-flex h-12 w-full items-center justify-center rounded-soft bg-primary px-4 text-base font-semibold text-white"
+            class="inline-flex h-12 w-full items-center justify-center rounded-soft bg-primary px-4 text-base font-semibold text-primary-content"
           >
             Call ReachNJ
           </a>
         </p>
       </div>
     </div>
-
-    <p class="mt-6 max-w-prose text-sm text-neutral/80">
-      Agape Counseling Services provides <strong>outpatient</strong>
-      substance use disorder treatment by appointment. This website does
-      not provide medical advice, diagnosis, or treatment. If you are in
-      crisis, do not use the contact form — call the lines above or 911.
-      For non-urgent appointments, call us at{' '}
-      <a href={phoneHref} class="underline">{phone}</a>.
-    </p>
   </div>
 </section>

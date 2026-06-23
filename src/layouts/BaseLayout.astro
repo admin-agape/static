@@ -31,6 +31,12 @@ import Navbar from '~/components/Navbar.astro';
 import Footer from '~/components/Footer.astro';
 import CrisisResources from '~/components/CrisisResources.astro';
 import SEO from '~/components/SEO.astro';
+import { detectLocale, type Locale } from '~/i18n';
+
+interface HreflangEntry {
+  lang: Locale | 'x-default';
+  href: string;
+}
 
 interface Props {
   title?: string;
@@ -43,6 +49,14 @@ interface Props {
    *  inject them higher up. Default: render inside main, above the fold
    *  on mobile (DESIGN.md §3.3.7 visibility rule). */
   suppressCrisisResources?: boolean;
+  /** Override the locale detected from URL. Pass `'es'` from
+   *  src/pages/es.astro to set <html lang="es"> and emit Spanish
+   *  hreflang entries. Default: auto-detect from Astro.url.pathname. */
+  locale?: Locale;
+  /** hreflang alternates for SEO. The page that calls BaseLayout
+   *  should pass the full set of (lang, absolute-URL) pairs including
+   *  itself. Default: none (English-only page emits no hreflang). */
+  hreflang?: HreflangEntry[];
 }
 
 const {
@@ -51,7 +65,15 @@ const {
   canonical,
   ogImage,
   suppressCrisisResources = false,
+  locale: localeProp,
+  hreflang = [],
 } = Astro.props;
+
+// Locale detection priority: explicit prop > URL pathname detection.
+// The es.astro page passes locale="es" to set <html lang="es"> and
+// ensure hreflang emission. Component-level locale (via Astro.url)
+// still uses URL detection for consistency.
+const locale: Locale = localeProp ?? detectLocale(Astro.url.pathname);
 
 // Cloudflare Web Analytics — token is provisioned post-handoff by the
 // client via .env / GitHub Actions secret. See DESIGN.md §6.2.3
@@ -66,14 +88,66 @@ const cfToken = import.meta.env.PUBLIC_CF_ANALYTICS_TOKEN;
 const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY;
 
 const siteUrl = Astro.site?.toString().replace(/\/$/, '') ?? 'https://agapenj.org';
-const canonicalUrl = canonical ?? siteUrl + Astro.url.pathname;
+// Build the canonical with the URL constructor — `site + Astro.url.pathname`
+// concatenation produces a doubled path for demo builds because the
+// per-client `site` is already tier-prefixed (e.g.,
+// https://demo.mophe.us/agape/tier-1/) AND the build's `base` is also
+// /agape/tier-1/, so `Astro.url.pathname` returns /agape/tier-1/. The
+// naive concat would yield demo.mophe.us/agape/tier-1/agape/tier-1/.
+// The URL constructor handles this correctly: the pathname is taken as
+// an absolute path on the base URL, so the doubled-prefix is
+// deduplicated and the result is just demo.mophe.us/agape/tier-1/.
+const canonicalUrl = canonical ?? new URL(Astro.url.pathname, siteUrl + '/').toString().replace(/\/$/, '') + '/';
 // §10.1 — fallback to the canonical /og-default.jpg (1200×630, ≤ 200 KB).
 const ogImageUrl = ogImage ?? `${siteUrl}/og-default.jpg`;
 ---
 
 <!doctype html>
-<html lang="en" data-theme="agape">
+<html lang={locale} data-theme="agape">
   <head>
+    {/*
+      Theme bootstrap — runs as a bundled module loaded synchronously
+      in the <head> to prevent a flash of the wrong theme (FOUC).
+      Astro hoists this <script> tag to a separate file and emits
+      <script type="module" src="..."> in the head. The module
+      dependency on import.meta means the browser doesn't delay first
+      paint waiting for the script.
+
+      Three-tier resolution:
+        1. localStorage 'agape-theme' = 'agape-dark' or 'agape' (explicit)
+        2. prefers-color-scheme: dark → 'agape-dark' (only if no explicit)
+        3. Default to 'agape' (light, declared on <html data-theme="agape">)
+
+      Why this isn't `is:inline`: a strict CSP
+      (script-src 'self' https://...) blocks inline scripts. The
+      bundled form keeps the CSP clean (no 'unsafe-inline') and the
+      page still resolves the theme before the first paint because
+      module scripts block the parser until evaluated.
+
+      The toggle handler is a separate <script> below — it can run
+      after DOMContentLoaded since it only needs the toggle button,
+      not the <html> element.
+    */}
+    <script>
+      // Read this synchronously and set data-theme BEFORE the page
+      // renders. The default is "agape" on the <html> element, so a
+      // missed bootstrap (e.g., JS disabled) just shows the light theme.
+      (function () {
+        try {
+          var stored = localStorage.getItem("agape-theme");
+          var theme =
+            stored === "agape-dark" || stored === "agape"
+              ? stored
+              : window.matchMedia &&
+                  window.matchMedia("(prefers-color-scheme: dark)").matches
+                ? "agape-dark"
+                : "agape";
+          document.documentElement.setAttribute("data-theme", theme);
+        } catch (e) {
+          // localStorage or matchMedia blocked — fall through to default.
+        }
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="generator" content={Astro.generator} />
@@ -85,7 +159,22 @@ const ogImageUrl = ogImage ?? `${siteUrl}/og-default.jpg`;
       description={description}
       canonicalURL={canonicalUrl}
       ogImage={ogImageUrl}
+      locale={locale}
     />
+
+    {/* hreflang alternates — emitted only when the page declares
+        them. For the demo's two-locale setup, both index.astro and
+        es.astro pass the full pair (en + es) so search engines see
+        the alternates regardless of which page the crawler lands on.
+        The page itself is omitted from the alternate set (the canonical
+        is the same URL). */}
+    {hreflang.map((entry) => (
+      <link
+        rel="alternate"
+        hreflang={entry.lang}
+        href={entry.href}
+      />
+    ))}
 
     {/* Favicon — Brand Logo per DESIGN.md §3.5.1.1 + §3.5.1.7.3.2. The
         `<link rel="icon">` points at /brand/company-logo.svg (the Brand
@@ -188,3 +277,83 @@ const ogImageUrl = ogImage ?? `${siteUrl}/og-default.jpg`;
     <Footer />
   </body>
 </html>
+
+{/*
+  Theme toggle — small bundler-friendly script that wires up the
+  button rendered by Footer.astro. Reads/writes localStorage so the
+  user's preference persists across visits. Listens for OS theme
+  changes (only when the user hasn't made an explicit choice) so the
+  site follows the system on machines that flip modes automatically.
+
+  The script is bundled by Astro as a standard module (not is:inline)
+  so it can tree-shake and minify. The bundled output is ~1KB.
+*/}
+<script>
+  // Theme toggle handler — wires up the button rendered in Footer.astro.
+  // Reads/writes localStorage so the user's preference persists. Listens
+  // for OS theme changes only when the user hasn't made an explicit
+  // choice (so explicit picks aren't overridden by an OS preference flip).
+  //
+  // The bundled module is ~1KB after minification. Runs after
+  // DOMContentLoaded — the button is in the footer, so the script can
+  // wait for the full DOM without any user-visible delay.
+  function initThemeToggle() {
+    var btn = document.getElementById("theme-toggle");
+    if (!btn) return;
+    var label = document.getElementById("theme-toggle-label");
+    var iconLight = document.getElementById("theme-toggle-icon-light");
+    var iconDark = document.getElementById("theme-toggle-icon-dark");
+    if (!label || !iconLight || !iconDark) return;
+
+    function currentTheme() {
+      return document.documentElement.getAttribute("data-theme") || "agape";
+    }
+
+    function applyTheme(theme) {
+      document.documentElement.setAttribute("data-theme", theme);
+      var isDark = theme === "agape-dark";
+      btn.setAttribute("aria-pressed", isDark ? "true" : "false");
+      label.textContent = isDark ? "Dark" : "Light";
+      // Show the icon for the mode you'd switch INTO (sun = "click to
+      // go light", moon = "click to go dark"). This matches the
+      // convention used by GitHub, Vercel, and most modern apps.
+      iconLight.classList.toggle("hidden", isDark);
+      iconDark.classList.toggle("hidden", !isDark);
+    }
+
+    // Initialize button state from the current theme (set by the
+    // <head> bootstrap script).
+    applyTheme(currentTheme());
+
+    btn.addEventListener("click", function () {
+      var next = currentTheme() === "agape-dark" ? "agape" : "agape-dark";
+      applyTheme(next);
+      try {
+        localStorage.setItem("agape-theme", next);
+      } catch (e) {
+        // localStorage blocked — the in-page state still flips; the
+        // choice just won't persist across visits.
+      }
+    });
+
+    if (window.matchMedia) {
+      var mq = window.matchMedia("(prefers-color-scheme: dark)");
+      var listener = function (e) {
+        try {
+          if (localStorage.getItem("agape-theme")) return;
+        } catch (err) {
+          // ignore — fall through to OS-follow behavior
+        }
+        applyTheme(e.matches ? "agape-dark" : "agape");
+      };
+      if (mq.addEventListener) mq.addEventListener("change", listener);
+      else if (mq.addListener) mq.addListener(listener);
+    }
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initThemeToggle);
+  } else {
+    initThemeToggle();
+  }
+</script>

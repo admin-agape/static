@@ -9,12 +9,38 @@
  * Icons are inline SVGs (Heroicons-style, 24x24 outline). This keeps
  * the zero-JS-at-idle goal (§2.1) and the §6.2.3 no-third-party posture
  * intact — no icon-font request, no icon CDN.
+ *
+ * Locale: title and summary come from the i18n catalog so the ES page
+ * shows translated card content. The `bullets` array stays in English
+ * for the demo (the catalog doesn't have bullet translations yet);
+ * the bullets are hidden on Spanish pages and a `data-translation`
+ * marker on the card flags them as missing-translation for handoff
+ * review. Production handoff adds bullet translations to the catalog.
+ *
+ * Slug → catalog-key map: the content collection entries have stable
+ * slugs (filename minus .md), which we map to catalog keys. Adding
+ * a new service means: drop a .md file with a slug, add the slug
+ * to SLUG_TO_KEY below, and add the catalog entries.
  */
 import { getCollection } from 'astro:content';
+import { detectLocale, useTranslations } from '~/i18n';
 
 const services = (await getCollection('services')).sort(
   (a, b) => a.data.order - b.data.order,
 );
+
+const locale = detectLocale(Astro.url.pathname);
+const translate = useTranslations(locale);
+const isDraft = locale !== 'en';
+
+// Map service slug (filename minus .md) → i18n catalog namespace.
+// The catalog keys follow `service.<slug>.name` and `.summary`.
+const SLUG_TO_KEY: Record<string, string> = {
+  iop: 'iop',
+  'individualized-counseling': 'individual',
+  'anger-management': 'anger',
+  'reiki-meditation': 'reiki',
+};
 
 // Inline Heroicons-style SVG paths for the four services. Keyed by the
 // `icon` frontmatter field on each service .md file (DESIGN.md §3.3.3).
@@ -27,6 +53,13 @@ const iconPaths: Record<string, string> = {
 };
 
 const titleId = 'services-heading';
+
+// Localized section heading + subhead (catalog keys).
+// (No eyebrow above the heading — services.eyebrow doesn't exist in the
+// en or es catalog, and the section opens straight into "Services" /
+// "Servicios" with no transitional tag.)
+const sectionHeading = translate('services.heading');
+const sectionSubhead = translate('services.subhead');
 ---
 
 <section
@@ -36,18 +69,18 @@ const titleId = 'services-heading';
 >
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
     <div class="max-w-prose">
-      <p class="text-sm font-semibold uppercase tracking-wide text-primary">
-        What we offer
-      </p>
       <h2
         id={titleId}
-        class="mt-2 text-3xl font-bold tracking-tight text-neutral sm:text-4xl"
+        class="text-3xl font-bold tracking-tight text-neutral sm:text-4xl"
+        data-translation={isDraft ? 'draft' : undefined}
       >
-        Four ways we can help.
+        {sectionHeading}
       </h2>
-      <p class="mt-3 text-lg text-neutral/80">
-        Outpatient substance use disorder care. You can join one program
-        or combine them.
+      <p
+        class="mt-3 text-lg text-neutral/80"
+        data-translation={isDraft ? 'draft' : undefined}
+      >
+        {sectionSubhead}
       </p>
     </div>
 
@@ -57,6 +90,18 @@ const titleId = 'services-heading';
     >
       {services.map((service) => {
         const iconPath = iconPaths[service.data.icon] ?? iconPaths.heart;
+        const slug = service.slug;
+        const catalogKey = SLUG_TO_KEY[slug] ?? slug;
+        // Localized title + summary when the catalog has the key.
+        // Falls back to the content collection values for unknown slugs
+        // (so a new service file isn't silently broken).
+        const cardTitle = locale === 'en'
+          ? service.data.title
+          : translate(`service.${catalogKey}.name`);
+        const cardSummary = locale === 'en'
+          ? service.data.summary
+          : translate(`service.${catalogKey}.summary`);
+        const showBullets = locale === 'en' && service.data.bullets.length > 0;
         return (
           <li
             class:list={[
@@ -83,14 +128,20 @@ const titleId = 'services-heading';
               </svg>
             </div>
 
-            <h3 class="mt-4 text-lg font-semibold text-neutral">
-              {service.data.title}
+            <h3
+              class="mt-4 text-lg font-semibold text-neutral"
+              data-translation={isDraft ? 'draft' : undefined}
+            >
+              {cardTitle}
             </h3>
-            <p class="mt-2 text-sm text-neutral/80">
-              {service.data.summary}
+            <p
+              class="mt-2 text-sm text-neutral/80"
+              data-translation={isDraft ? 'draft' : undefined}
+            >
+              {cardSummary}
             </p>
 
-            {service.data.bullets.length > 0 && (
+            {showBullets && (
               <ul class="mt-4 space-y-2 text-sm text-neutral/80" role="list">
                 {service.data.bullets.map((bullet) => (
                   <li class="flex items-start gap-2">
@@ -129,8 +180,12 @@ const titleId = 'services-heading';
                   across the 4-column grid regardless of which services have
                   bullets. Cards are flex-col with h-full, so this absorbs
                   any leftover vertical space above. */}
-              <a href="#contact-form" class="text-primary underline-offset-2 hover:underline">
-                Ask about {service.data.title}
+              <a
+                href="#contact-form"
+                class="text-primary underline-offset-2 hover:underline"
+                data-translation={isDraft ? 'draft' : undefined}
+              >
+                {translate('services.ctaAsk', { service: cardTitle })}
               </a>
             </p>
           </li>
@@ -141,17 +196,23 @@ const titleId = 'services-heading';
     {/* NJ DOT impaired-driver program — secondary CTA inside this
         section per §3.3.3 line 247. */}
     <div class="mt-12 rounded-soft border border-primary/30 bg-primary/5 p-6">
-      <p class="text-sm font-semibold text-primary">
+      <p
+        class="text-sm font-semibold text-primary"
+        data-translation={isDraft ? 'draft' : undefined}
+      >
         NJ DOT impaired-driver program
       </p>
-      <p class="mt-2 text-base text-neutral">
+      <p
+        class="mt-2 text-base text-neutral"
+        data-translation={isDraft ? 'draft' : undefined}
+      >
         We work with the New Jersey Department of Transportation on
         impaired-driver counseling. Call us to ask about scheduling.
       </p>
       <p class="mt-3">
         <a
           href="tel:+16092420086"
-          class="inline-flex h-11 items-center justify-center rounded-soft bg-primary px-5 text-sm font-semibold text-white"
+          class="inline-flex h-11 items-center justify-center rounded-soft bg-primary px-5 text-sm font-semibold text-primary-content"
         >
           Call (609) 242-0086
         </a>

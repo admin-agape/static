@@ -2,22 +2,28 @@
 /**
  * Agape — FAQ Component (DESIGN.md §3.3.8 + §10.3)
  *
- * Renders a semantically correct `<details>` / `<summary>` accordion from
- * src/data/faq.json. Pure HTML, ZERO JavaScript at runtime — the disclosure
- * widget is handled by the browser. The component also emits a paired
- * `FAQPage` JSON-LD block that Astro hoists into the document <head>
- * (visible to crawlers and to Google's Rich Results Test).
+ * Renders a semantically correct `<details>` / `<summary>` accordion. The
+ * question/answer text comes from the i18n catalog so the EN and ES
+ * pages render localized FAQ content. The `src/data/faq.json` file
+ * still exists (validated against src/data/faq.schema.json) as the
+ * canonical ID list — it provides the ORDER and IDs of the questions,
+ * and the component maps each ID to the catalog keys (e.g.,
+ * `faq-q-medicaid` → `faq.q.medicaid` + `faq.a.medicaid`).
+ *
+ * The data file is the structural contract; the catalog is the
+ * content contract. This split lets the client edit copy in JSON
+ * (one place per locale) without changing the schema, while still
+ * being able to add/remove/reorder items via `faq.json`.
  *
  * Contract:
- *   - Data source: src/data/faq.json (validated against src/data/faq.schema.json)
- *   - Required props: none. The data file IS the contract — the client edits
- *     JSON, not the component.
- *   - Empty-state: if items: [] (or schema-invalid), renders a single <p>
- *     placeholder with the phone number — keeps §1.1 "lifeline" promise.
- *   - Accessibility: <details>/<summary> are first-class disclosure widgets,
- *     no ARIA scaffolding needed. <summary> wraps <h3> for heading-rotation
- *     navigation. Each <details> carries a stable id="faq-q-<n>" for deep
- *     links (e.g., agapenj.org/#faq-q-medicaid).
+ *   - Required props: none. The data file + catalog ARE the contract.
+ *   - Locale: detected from Astro.url.pathname via ~/i18n.
+ *   - Empty-state: if items: [], renders a single <p> placeholder with
+ *     the phone number — keeps §1.1 "lifeline" promise.
+ *   - Accessibility: <details>/<summary> are first-class disclosure
+ *     widgets, no ARIA scaffolding needed. <summary> wraps <h3> for
+ *     heading-rotation navigation. Each <details> carries a stable
+ *     id="faq-q-<n>" for deep links (e.g., agapenj.org/#faq-q-medicaid).
  *   - 0 KB JS: no executable <script> in the component body. The JSON-LD
  *     <script type="application/ld+json"> is a data block, not executable JS.
  *
@@ -25,37 +31,86 @@
  * `source` prop is the seam).
  */
 import faqData from '~/data/faq.json';
+import { detectLocale, useTranslations } from '~/i18n';
 
 interface Props {
   /** Override the wrapping section id. Default: 'faq'. */
   id?: string;
-  /** Optional heading override. Default: 'Frequently asked questions'. */
+  /** Optional heading override. Default: catalog key faq.heading. */
   heading?: string;
   /** Optional section classes override. Default: §3.3.8 calm, generous. */
   class?: string;
 }
 
+const locale = detectLocale(Astro.url.pathname);
+const translate = useTranslations(locale);
+const isDraft = locale !== 'en';
+
 const {
   id = 'faq',
-  heading = 'Frequently asked questions',
+  heading = translate('faq.heading'),
   class: className = 'bg-base-100 py-16 sm:py-20',
 } = Astro.props;
 
 // Coerce to the typed shape. The build fails in CI if any item is invalid
 // (npm run check:faq → scripts/check-faq.mjs); this is a runtime sanity
 // check only — the schema is the real gate.
-const items: { id: string; question: string; answer: string }[] = Array.isArray(faqData?.items) ? (faqData.items as any) : [];
+const items: { id: string }[] = Array.isArray(faqData?.items)
+  ? (faqData.items as Array<{ id: string }>).filter((it) => it && typeof it.id === 'string')
+  : [];
 
 const hasItems = items.length > 0;
 
+// Map a faq.json id (e.g., "faq-q-iop-length") to the catalog namespace
+// (e.g., "iopLength"). The catalog uses camelCase keys; the JSON uses
+// kebab-case slugs. We normalize by stripping the `faq-q-` prefix
+// and converting kebab-case to camelCase. Falls back to the id when
+// no catalog key exists (which then surfaces as the raw key, making
+// the gap obvious in the rendered HTML).
+function idToCatalogKey(id: string): string {
+  const stripped = id.replace(/^faq-q-/, '');
+  return stripped.replace(/-([a-z])/g, (_match, letter: string) => letter.toUpperCase());
+}
+
+// Localize the question + answer via the catalog. Falls back to the
+// faq.json values when the catalog doesn't have a translation (the
+// data file is the structural source of truth).
+interface LocalizedItem {
+  id: string;
+  question: string;
+  answer: string;
+}
+const localizedItems: LocalizedItem[] = items.map((item) => {
+  const key = idToCatalogKey(item.id);
+  if (locale === 'en') {
+    // For EN, use the catalog (which mirrors the JSON values today).
+    // This keeps a single source of truth for the EN copy.
+    return {
+      id: item.id,
+      question: translate(`faq.q.${key}`),
+      answer: translate(`faq.a.${key}`),
+    };
+  }
+  // For ES, use the catalog. If a key is missing, the translate()
+  // function returns the key itself, which surfaces the gap rather
+  // than silently falling back to English.
+  return {
+    id: item.id,
+    question: translate(`faq.q.${key}`),
+    answer: translate(`faq.a.${key}`),
+  };
+});
+
 // Build the JSON-LD payload up-front so the <script> tag in the template is
-// a one-liner. mainEntity is empty array when items=[] (per the §3.3.8
-// empty-state contract: do NOT emit a misleading empty FAQPage to Google).
+// a one-liner. mainEntity uses the localized questions + answers. We emit
+// the localized FAQPage so search engines see the locale's content (not
+// EN mixed into the ES page's structured data).
 const jsonLdString = hasItems
   ? JSON.stringify({
       '@context': 'https://schema.org',
       '@type': 'FAQPage',
-      mainEntity: items.map((it) => ({
+      inLanguage: locale,
+      mainEntity: localizedItems.map((it) => ({
         '@type': 'Question',
         name: it.question,
         acceptedAnswer: { '@type': 'Answer', text: it.answer },
@@ -76,24 +131,20 @@ const jsonLdString = hasItems
     <h2
       id={`${id}-heading`}
       class="text-3xl font-bold tracking-tight text-neutral sm:text-4xl"
+      data-translation={isDraft ? 'draft' : undefined}
     >
       {heading}
     </h2>
-    <p class="mt-3 text-base text-neutral/80">
-      Quick answers to the questions our intake team hears most often. Call
-      us at{' '}
-      <a
-        href="tel:+16092420086"
-        class="font-semibold text-primary underline-offset-2 hover:underline"
-      >
-        (609) 242-0086
-      </a>
-      {' '}— we are happy to help.
+    <p
+      class="mt-3 text-base text-neutral/80"
+      data-translation={isDraft ? 'draft' : undefined}
+    >
+      {translate('faq.intro')}
     </p>
 
     {hasItems ? (
       <div class="mt-8 space-y-4">
-        {items.map((item) => (
+        {localizedItems.map((item) => (
           <details
             id={item.id}
             class="group rounded-soft border border-base-300 bg-base-200 transition-colors open:bg-base-100"
@@ -102,7 +153,10 @@ const jsonLdString = hasItems
               class="flex cursor-pointer items-center justify-between gap-4 rounded-soft px-5 py-4 text-left text-base font-semibold text-neutral transition-colors hover:bg-base-300/40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary sm:text-lg"
               style="min-height: 44px;"
             >
-              <h3 class="text-base font-semibold text-neutral sm:text-lg">
+              <h3
+                class="text-base font-semibold text-neutral sm:text-lg"
+                data-translation={isDraft ? 'draft' : undefined}
+              >
                 {item.question}
               </h3>
               <svg
@@ -117,7 +171,7 @@ const jsonLdString = hasItems
               </svg>
             </summary>
             <div class="px-5 pb-5 pt-1 text-base text-neutral/80">
-              <p>{item.answer}</p>
+              <p data-translation={isDraft ? 'draft' : undefined}>{item.answer}</p>
             </div>
           </details>
         ))}

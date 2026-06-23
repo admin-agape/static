@@ -8,9 +8,9 @@ Every Phase 2 workstream is a separate engagement, scoped and priced when
 requested.
 
 **Cross-references:**
-- Marketing/positioning framing of Phase 1's market value: [`CLIENT-PROPOSAL.md` §14.1](./CLIENT-PROPOSAL.md#141-what-this-would-cost-commercially-market-value)
-- Full Phase 2 workstream list with relative sizing: [`CLIENT-PROPOSAL.md` §12](./CLIENT-PROPOSAL.md#12-phase-2-opportunities-future-work)
+- The proposal (what was built, what's optional): [`CLIENT-PROPOSAL.md`](./CLIENT-PROPOSAL.md)
 - 42 CFR Part 2 testimonial compliance worksheet (the Phase 2 tool for adding compliant social proof): [`TESTIMONIAL-REVIEW.md`](./TESTIMONIAL-REVIEW.md)
+- The compliance audit trail: [`COMPLIANCE.md`](./COMPLIANCE.md)
 - Editing guide for day-to-day content changes (intake coordinator): [`EDITING_GUIDE.md`](./EDITING_GUIDE.md)
 
 ---
@@ -37,8 +37,9 @@ For every Phase 2 workstream — regardless of size:
 - **Verification** — Pre-Demo Checklist-equivalent for the workstream
   (Lighthouse, accessibility, 42 CFR Part 2 review if applicable,
   build passes).
-- **Deploy** — pushed via the same GitHub Actions pipeline used for
-  Phase 1; live in ~60 seconds after commit.
+- **Deploy** — pushed via `wrangler pages deploy ./dist` to the client's
+  Cloudflare Pages project (same mechanism used for Phase 1); live in
+  ~30 seconds after build.
 - **Documentation update** — `COMPLIANCE.md`, `EDITING_GUIDE.md`, and
   this `PHASE-2.md` (if the workstream adds a new pre-scoped item)
   all updated to reflect the change.
@@ -83,9 +84,9 @@ every workstream runs on.
 
 Phase 1 was the **website rebuild** — the work on disk at demo time:
 the static Astro build, the 42 CFR Part 2 compliance posture, the
-GitHub-owned repository, the editing guide, the Loom walkthrough, and
-the 30-day post-demo support window. **Phase 1 is a finished digital
-asset.**
+Cloudflare Pages hosting + Cloudflare account ownership, the editing
+guide, the Loom walkthrough, and the 30-day post-demo support window.
+**Phase 1 is a finished digital asset.**
 
 **Phase 2 is everything that comes next.** It is not part of the
 original engagement and it is not absorbed into it silently. Every
@@ -134,11 +135,12 @@ by a written policy.
    the signature block.
 2. For each testimonial you want to publish, obtain a signed
    authorization on the consent form.
-3. Create a `.md` file under `src/content/testimonials/` with the
-   frontmatter (including `consent_date` and `consent_hash`) and the
-   body text.
-4. Commit the file in the GitHub web UI. The site rebuilds in ~60
-   seconds; the testimonial appears in the `#testimonials` section.
+ 3. Create a `.md` file under `src/content/testimonials/` with the
+    frontmatter (including `consent_date` and `consent_hash`) and the
+    body text.
+ 4. Send the file to the dev. The dev rebuilds and pushes via
+    `wrangler pages deploy ./dist`. The site is live in ~30 seconds;
+    the testimonial appears in the `#testimonials` section.
 
 **Time investment for your team:** the consent-form collection,
 witnessing, and filing. The dev is not involved unless you want
@@ -146,9 +148,11 @@ help with the technical file creation.
 
 ### 3.2 Content edits (services, hours, FAQ, access banner)
 
-Anything in `src/content/` is editable by the intake coordinator in the
-GitHub web UI. See [`EDITING_GUIDE.md`](./EDITING_GUIDE.md) for the
-non-technical walkthrough. Common edits:
+Anything in `src/content/` is editable by the intake coordinator in
+any text editor (VS Code, TextEdit, Notepad++, etc.) — the source code
+is delivered as a zipped archive in the handoff package. See
+[`EDITING_GUIDE.md`](./EDITING_GUIDE.md) for the non-technical
+walkthrough. Common edits:
 
 - Change a service description → edit `src/content/services/*.md`
 - Change hours → edit the relevant `.md` frontmatter
@@ -156,8 +160,8 @@ non-technical walkthrough. Common edits:
 - Update the access banner (bilingual / Medicaid / no-wait) → edit the
   relevant `.md` file
 
-**No vendor portal, no support ticket, no cost.** Live in about 60
-seconds after the commit.
+**No vendor portal, no support ticket, no cost.** Send the updated
+file(s) to the dev for redeploy; live in ~30 seconds after the deploy.
 
 ---
 
@@ -275,8 +279,9 @@ For context, the rebuild that was just delivered — the Performance
 Build, the 42 CFR Part 2 Compliance Engineering, the Infrastructure
 Security & Mail Hardening, and the Structural SEO — would have a
 market value of approximately **$7,500 – $12,000** if commissioned
-from a professional developer at standard rates. The full breakdown
-is in [`CLIENT-PROPOSAL.md` §14.1](./CLIENT-PROPOSAL.md#141-what-this-would-cost-commercially-market-value).
+from a HIPAA-aware web agency at standard rates. The §8 "What You
+Could Do Instead" table in [`CLIENT-PROPOSAL.md`](./CLIENT-PROPOSAL.md)
+compares the Phase 1 fee against the closest alternatives.
 
 This is the anchor for understanding why Phase 2 workstreams are
 quoted as separate engagements: they are real work, against a
@@ -287,13 +292,16 @@ delivered.
 
 ## 8. Cross-References
 
-- [`CLIENT-PROPOSAL.md` §12 — Phase 2 Opportunities](./CLIENT-PROPOSAL.md#12-phase-2-opportunities-future-work) — the canonical sizing table
-- [`CLIENT-PROPOSAL.md` §14.1 — Market Value Anchor](./CLIENT-PROPOSAL.md#141-what-this-would-cost-commercially-market-value) — what the rebuild would cost commercially
+- [`CLIENT-PROPOSAL.md`](./CLIENT-PROPOSAL.md) — the proposal (read first)
+- [`PHASE-1-ENGAGEMENT-AGREEMENT.md`](./PHASE-1-ENGAGEMENT-AGREEMENT.md) — the contract (sign and return)
+- [`COMPLIANCE.md`](./COMPLIANCE.md) — the §6 audit trail (attorney-relevant)
 - [`TESTIMONIAL-REVIEW.md`](./TESTIMONIAL-REVIEW.md) — the 42 CFR Part 2 worksheet for adding compliant testimonials (the highest-leverage zero-cost unlock)
-- [`EDITING_GUIDE.md`](./EDITING_GUIDE.md) — non-technical guide for day-to-day content edits
-- [`README.md`](./README.md) — repo entry point for any future maintainer
+- [`EDITING_GUIDE.md`](./EDITING_GUIDE.md) — non-technical guide for day-to-day content edits (delivered at the demo)
+- [`DESIGN.md`](./DESIGN.md) — the internal spec (for any future developer)
 
 ---
 
 **End of Phase 2 Index.** This document is informational and is not a
 quote. Every workstream is sized and priced when requested.
+
+**Last updated:** 2026-06-20 (post-G.23 Cloudflare Pages hosting pivot).

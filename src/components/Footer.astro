@@ -23,18 +23,18 @@
  * component code. Deferred — out of Phase 1 scope.
  */
 import Logo from '~/components/Logo.astro';
+import { detectLocale, useTranslations } from '~/i18n';
 
 const currentYear = new Date().getFullYear();
+const locale = detectLocale(Astro.url.pathname);
+const translate = useTranslations(locale);
+const isDraft = locale !== 'en';
 
 // Contact info (DESIGN.md Appendix D — Contact & Hours)
 const phone = '(609) 242-0086';
 const phoneHref = 'tel:+16092420086';
 const email = 'info@agapenj.org';
 const address = '815 U.S. 9, Lanoka Harbor, NJ 08734';
-
-// Hours of operation
-const hours = 'Mon–Fri 9:00 AM – 9:00 PM';
-const weekendHours = 'Sat–Sun by appointment only';
 
 // External links — all `rel="noopener noreferrer"` for tabnabbing
 // protection, all explicit `target="_blank"` only when warranted.
@@ -68,15 +68,31 @@ const googleReviewUrl =
   <div class="border-b border-base-300">
     <div class="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:grid-cols-3 sm:px-6 lg:px-8">
       <div>
-        <h2 class="text-sm font-semibold uppercase tracking-wide text-primary">
-          Hours
+        <h2
+          class="text-sm font-semibold uppercase tracking-wide text-primary"
+          data-translation={isDraft ? 'draft' : undefined}
+        >
+          {translate('footer.hours.heading')}
         </h2>
-        <p class="mt-2 text-base font-medium">{hours}</p>
-        <p class="text-sm text-neutral/80">{weekendHours}</p>
+        <p
+          class="mt-2 text-base font-medium"
+          data-translation={isDraft ? 'draft' : undefined}
+        >
+          {translate('footer.hours.weekday')}
+        </p>
+        <p
+          class="text-sm text-neutral/80"
+          data-translation={isDraft ? 'draft' : undefined}
+        >
+          {translate('footer.hours.weekend')}
+        </p>
       </div>
       <div>
-        <h2 class="text-sm font-semibold uppercase tracking-wide text-primary">
-          Contact
+        <h2
+          class="text-sm font-semibold uppercase tracking-wide text-primary"
+          data-translation={isDraft ? 'draft' : undefined}
+        >
+          {translate('footer.contact.heading')}
         </h2>
         <p class="mt-2">
           <a href={phoneHref} class="text-base font-medium text-neutral underline-offset-2 hover:underline">
@@ -93,21 +109,21 @@ const googleReviewUrl =
         </address>
       </div>
       <div>
-        <h2 class="text-sm font-semibold uppercase tracking-wide text-primary">
-          Connect
+        <h2
+          class="text-sm font-semibold uppercase tracking-wide text-primary"
+          data-translation={isDraft ? 'draft' : undefined}
+        >
+          {translate('footer.connect.heading')}
         </h2>
         <ul class="mt-2 space-y-2 text-base">
           <li>
-            {/* §6.2.3 — Facebook link ONLY. No SDK, no Pixel, no embed.
-                Visitor's browser hits Facebook only when they click,
-                which is user-initiated and not a §6.2.1 re-disclosure
-                surface. */}
             <a
               href={facebookUrl}
               rel="noopener noreferrer"
               class="text-neutral underline-offset-2 hover:underline"
+              data-translation={isDraft ? 'draft' : undefined}
             >
-              Facebook
+              {translate('footer.connect.facebook')}
               <span class="ml-1 text-xs text-neutral/80" aria-hidden="true">↗</span>
             </a>
           </li>
@@ -116,8 +132,9 @@ const googleReviewUrl =
               href={googleReviewUrl}
               rel="noopener noreferrer"
               class="text-neutral underline-offset-2 hover:underline"
+              data-translation={isDraft ? 'draft' : undefined}
             >
-              Google reviews
+              {translate('footer.connect.googleReviews')}
               <span class="ml-1 text-xs text-neutral/80" aria-hidden="true">↗</span>
             </a>
           </li>
@@ -133,127 +150,114 @@ const googleReviewUrl =
       from any scroll position. */}
 
   {/* §6.2.4 — 42 CFR Part 2 Notice */}
-  {/* [ATTORNEY REVIEW PENDING] Final wording subject to client/attorney
-      approval per DESIGN.md §6.2.4. Current text is the §6.2.4 template. */}
   <details class="group border-b border-base-300">
     <summary class="mx-auto flex max-w-6xl cursor-pointer items-center justify-between px-4 py-4 text-sm font-semibold uppercase tracking-wide text-primary hover:bg-base-300 sm:px-6 lg:px-8">
-      <span>42 CFR Part 2 Notice</span>
+      <span data-translation={isDraft ? 'draft' : undefined}>{translate('footer.legal.part2')}</span>
       <span class="ml-2 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
     </summary>
     <div class="mx-auto max-w-6xl px-4 pb-6 text-sm leading-relaxed text-neutral/80 sm:px-6 lg:px-8">
-      {/* [ATTORNEY REVIEW PENDING] §6.2.4 template text — final wording subject
-          to attorney sign-off. The block is in `<details>` per §6.8 visibility
-          rule; expand affordance is the explicit summary element. */}
-      <p>
-        Agape Counseling Services is required by <strong>42 CFR Part 2</strong>
-        to protect the confidentiality of substance use disorder treatment
-        records. Information that you provide through this website is
-        <strong> not</strong> a substitute for clinical care and does not
-        establish a treatment relationship. If you are seeking treatment,
-        please call us at <a href={phoneHref}>{phone}</a>.
-      </p>
+      <p data-translation={isDraft ? 'draft' : undefined} set:html={translate('footer.legal.part2Body', {
+        part2: '<strong>42 CFR Part 2</strong>',
+        not: '<strong>not</strong>',
+        phone: `<a href="${phoneHref}">${phone}</a>`,
+      })} />
     </div>
   </details>
 
   {/* §6.3 — Privacy Notice */}
-  {/* [ATTORNEY REVIEW PENDING] Privacy notice text — DESIGN.md §6.3 requires
-      client/attorney sign-off before public launch. The §6.3 template is
-      rendered below with the required content elements enumerated in §6.3
-      lines 1–7. */}
   <details class="group border-b border-base-300">
     <summary class="mx-auto flex max-w-6xl cursor-pointer items-center justify-between px-4 py-4 text-sm font-semibold uppercase tracking-wide text-primary hover:bg-base-300 sm:px-6 lg:px-8">
-      <span>Privacy notice</span>
+      <span data-translation={isDraft ? 'draft' : undefined}>{translate('footer.legal.privacy')}</span>
       <span class="ml-2 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
     </summary>
     <div class="mx-auto max-w-6xl px-4 pb-6 text-sm leading-relaxed text-neutral/80 sm:px-6 lg:px-8 space-y-3">
-      {/* [ATTORNEY REVIEW PENDING] §6.3 lines 1–7 — required content elements:
-          (1) no tracking cookies; (2) form submissions go via Web3Forms; (3)
-          no PHI/SUD info via contact form; (4) no selling/sharing; (5) analytics
-          provider statement; (6) effective date; (7) privacy contact email. */}
-      <p>
-        This site does not use tracking cookies. We do not sell or share your
-        information with third parties for marketing.
-      </p>
-      <p>
-        Form submissions are sent via <a href="https://web3forms.com/" rel="noopener noreferrer" class="underline">Web3Forms</a>
-        and stored per that provider's privacy policy. Please do not submit
-        medical, substance-use, or other sensitive health information through
-        this form — it is for general inquiries only.
-      </p>
-      <p>
-        We use Cloudflare Web Analytics to count visits. This service is
-        cookieless, does not profile visitors, and does not share data with
-        third parties.
-      </p>
-      <p>
-        Effective date: <time datetime="2026-06-19">June 19, 2026</time>.
-        Privacy questions: <a href={`mailto:${email}`} class="underline">{email}</a>.
-      </p>
+      <p data-translation={isDraft ? 'draft' : undefined}>{translate('footer.legal.privacyP1')}</p>
+      <p data-translation={isDraft ? 'draft' : undefined} set:html={translate('footer.legal.privacyP2', {
+        web3formsLink: '<a href="https://web3forms.com/" rel="noopener noreferrer" class="underline">Web3Forms</a>',
+      })} />
+      <p data-translation={isDraft ? 'draft' : undefined}>{translate('footer.legal.privacyP3')}</p>
+      <p data-translation={isDraft ? 'draft' : undefined} set:html={translate('footer.legal.privacyEffective', { date: '<time datetime="2026-06-19">June 19, 2026</time>' }) + ' ' + translate('footer.legal.privacyContact', { email: `<a href="mailto:${email}" class="underline">${email}</a>` })} />
     </div>
   </details>
 
   {/* §6.4 — General Disclaimers */}
-  {/* [ATTORNEY REVIEW PENDING] §6.4 lines 1–5. Item #1 (EIN) requires client
-      supply per DESIGN.md §4.1 #13 — currently placeholder shows
-      "[EIN: PENDING]" until the client supplies the actual EIN. */}
   <details class="group border-b border-base-300">
     <summary class="mx-auto flex max-w-6xl cursor-pointer items-center justify-between px-4 py-4 text-sm font-semibold uppercase tracking-wide text-primary hover:bg-base-300 sm:px-6 lg:px-8">
-      <span>Disclaimers</span>
+      <span data-translation={isDraft ? 'draft' : undefined}>{translate('footer.legal.disclaimers')}</span>
       <span class="ml-2 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
     </summary>
     <div class="mx-auto max-w-6xl px-4 pb-6 text-sm leading-relaxed text-neutral/80 sm:px-6 lg:px-8 space-y-3">
       <p>
-        Agape is a 501(c)(3) nonprofit organization.{' '}
-        {/* [ATTORNEY REVIEW PENDING] EIN — DESIGN.md §4.1 #13 BLOCKER. The
-            placeholder will be replaced with the client's actual EIN once
-            supplied. Until then, the disclosure line is incomplete but the
-            component structure is complete and §6.4 is reachable per §6.8. */}
+        {translate('footer.legal.einLabel')}
         <span class="font-semibold">[EIN: PENDING — client to provide per DESIGN.md §4.1 #13]</span>
       </p>
-      <p>Outpatient counseling services are provided by licensed clinicians.</p>
-      <p>This website does not establish a clinician–patient relationship.</p>
-      <p>This website does not provide medical advice, diagnosis, or treatment.</p>
-      <p class="pt-2 text-xs text-neutral/80">
-        © {currentYear} Agape Counseling Services. All rights reserved.
+      <p data-translation={isDraft ? 'draft' : undefined}>{translate('footer.legal.disclaimerClinicians')}</p>
+      <p data-translation={isDraft ? 'draft' : undefined}>{translate('footer.legal.disclaimerNoRelationship')}</p>
+      <p data-translation={isDraft ? 'draft' : undefined}>{translate('footer.legal.disclaimerNoAdvice')}</p>
+      <p
+        class="pt-2 text-xs text-neutral/80"
+        data-translation={isDraft ? 'draft' : undefined}
+      >
+        {translate('footer.legal.disclaimerCopyright', { year: currentYear })}
       </p>
     </div>
   </details>
 
   {/* §6.5 — Accessibility Statement */}
-  {/* [ATTORNEY REVIEW PENDING] §6.5 template text — final wording subject to
-      attorney review. The text below is the §6.5 template verbatim. */}
   <details class="group border-b border-base-300">
     <summary class="mx-auto flex max-w-6xl cursor-pointer items-center justify-between px-4 py-4 text-sm font-semibold uppercase tracking-wide text-primary hover:bg-base-300 sm:px-6 lg:px-8">
-      <span>Accessibility</span>
+      <span data-translation={isDraft ? 'draft' : undefined}>{translate('footer.legal.accessibility')}</span>
       <span class="ml-2 transition-transform group-open:rotate-180" aria-hidden="true">▾</span>
     </summary>
     <div class="mx-auto max-w-6xl px-4 pb-6 text-sm leading-relaxed text-neutral/80 sm:px-6 lg:px-8 space-y-3">
-      <p>
-        Agape is committed to ensuring digital accessibility for people with
-        disabilities. We continually improve the user experience for everyone
-        and apply the relevant accessibility standards.
-      </p>
-      <p>
-        If you encounter an accessibility barrier, please contact us at{' '}
-        <a href={phoneHref} class="underline">{phone}</a> or{' '}
-        <a href={`mailto:${email}`} class="underline">{email}</a>.
-      </p>
-      <p class="text-xs text-neutral/80">
-        This site targets WCAG 2.1 AA conformance (DESIGN.md §5.4).
+      <p data-translation={isDraft ? 'draft' : undefined}>{translate('footer.legal.accessibilityBody')}</p>
+      <p data-translation={isDraft ? 'draft' : undefined} set:html={translate('footer.legal.accessibilityContact', {
+        phone: `<a href="${phoneHref}" class="underline">${phone}</a>`,
+        email: `<a href="mailto:${email}" class="underline">${email}</a>`,
+      })} />
+      <p
+        class="text-xs text-neutral/80"
+        data-translation={isDraft ? 'draft' : undefined}
+      >
+        {translate('footer.legal.accessibilityConformance')}
       </p>
     </div>
   </details>
 
   {/* Final attribution row — dev handoff provenance. Kept tiny so the
-      §6 disclosures remain the visual focus of the footer. */}
+      §6 disclosures remain the visual focus of the footer. The theme
+      toggle on the right flips between agape (light) and agape-dark
+      (dark). The button is a no-JS fallback: if the script in
+      BaseLayout hasn't run yet, the button still works because it
+      has a real `aria-pressed` state and a label. The script
+      enhances it with the localStorage persistence and the
+      data-theme attribute flip. */}
   <div class="bg-base-300">
-    <div class="mx-auto flex max-w-6xl flex-col items-start gap-1 px-4 py-4 text-xs text-neutral/80 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
-      <p>
-        Built on the open web. Source available under MIT.
+    <div class="mx-auto flex max-w-6xl flex-col items-start gap-2 px-4 py-4 text-xs text-neutral/80 sm:flex-row sm:items-center sm:justify-between sm:px-6 lg:px-8">
+      <p data-translation={isDraft ? 'draft' : undefined}>
+        {translate('footer.builtWith')}
       </p>
-      <p>
-        Astro 4 · Tailwind 3 · DaisyUI 4 · GitHub Pages
-      </p>
+      <div class="flex items-center gap-3">
+        <p>
+          Astro 4 · Tailwind 3 · DaisyUI 4 · GitHub Pages
+        </p>
+        <button
+          type="button"
+          id="theme-toggle"
+          aria-label="Toggle dark mode"
+          aria-pressed="false"
+          class="inline-flex h-8 items-center gap-1.5 rounded-soft border border-base-300 bg-base-100 px-2.5 text-xs font-semibold text-neutral transition-colors hover:bg-base-200"
+        >
+          <svg id="theme-toggle-icon-light" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4"/>
+            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/>
+          </svg>
+          <svg id="theme-toggle-icon-dark" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" class="hidden">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+          </svg>
+          <span id="theme-toggle-label">Light</span>
+        </button>
+      </div>
     </div>
   </div>
 </footer>

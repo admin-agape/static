@@ -1,10 +1,10 @@
 # Agape — Testimonial Review & 42 CFR Part 2 Compliance Worksheet
 
 **Project:** Agape Counseling Services — Website Rebuild
-**Document Version:** 1.0.0
-**Date:** 2026-06-18
+**Document Version:** 1.1.0
+**Date:** 2026-06-20 (rev: aligned with Cloudflare Pages hosting pivot)
 **Companion spec:** [`DESIGN.md`](./DESIGN.md) §6.2 (42 CFR Part 2)
-**Filing target:** [`COMPLIANCE.md`](./COMPLIANCE.md) (created on completion)
+**Filing target:** Source code archive delivered at handoff
 **Retention:** 6 years from testimonial publication date (standard clinical record retention)
 
 > **Purpose.** This worksheet is the legal gate between the legacy site's
@@ -30,7 +30,9 @@
    authority over Agape's clinical communications — typically the Executive
    Director, Clinical Director, or Compliance Officer.
 5. **File** the signed worksheet, the signed consent forms, and this
-   document together as `COMPLIANCE.md` in the project repository.
+   document together with the source code archive that the developer
+   delivers at handoff (the dev retains a copy privately for the
+   project's audit trail).
 
 ---
 
@@ -148,7 +150,7 @@ marketing materials. I attest that:
 
 5. I release the developer and any successor maintainer of the Agape website from liability for any testimonial published in accordance with the decisions recorded in this worksheet, on the basis that the program's authorized representative has approved each publication.
 
-6. I understand that the completed, signed version of this worksheet, together with all signed 42 CFR Part 2 consent forms, becomes part of the project's compliance record and is filed in [`COMPLIANCE.md`](./COMPLIANCE.md) in the project repository.
+6. I understand that the completed, signed version of this worksheet, together with all signed 42 CFR Part 2 consent forms, becomes part of the project's compliance record and is filed alongside [`COMPLIANCE.md`](./COMPLIANCE.md) in the source code archive delivered at handoff.
 
 **Signature:**
 
@@ -186,15 +188,15 @@ _______________________________________________________
 
 ## §5 — Filing Instructions
 
-1. **Save** this worksheet, with all signatures, as `COMPLIANCE.md` in the project repository.
+1. **Save** this worksheet, with all signatures, alongside the source code archive that the developer delivers at handoff (the dev retains a copy for the project's audit trail).
 2. **Attach** a folder of signed 42 CFR Part 2 consent forms (Appendix A) — one per testimonial marked `KEEP` or `MODIFY`. Suggest the path `compliance/testimonial-consents/`.
-3. **Update** the `src/content/testimonials/` directory to reflect the §1 decisions:
+3. **Update** the `src/content/testimonials/` directory in the source code archive to reflect the §1 decisions:
    - For each `KEEP`: copy the legacy text into a `.md` file (correcting the typos noted in DESIGN.md §4.4).
    - For each `MODIFY`: copy the rewritten text from §3 into a `.md` file.
    - For each `DROP`: do not create a `.md` file.
 4. **Annotate** the front matter of each surviving testimonial with the consent-on-file date and a hash or filename of the signed form.
-5. **Do not deploy** the rebuilt site to production until this worksheet is signed and the COMPLIANCE.md record exists in the repository.
-6. **Retain** the COMPLIANCE.md record and consent forms for **6 years** from the date of publication, in a location accessible to Agape's clinical compliance officer.
+5. **Send** the updated `.md` file(s) (and any updated `compliance/` files) to the dev. The dev rebuilds and pushes via `wrangler pages deploy ./dist`; the testimonial(s) appear on the next deploy (~30 seconds).
+6. **Retain** the worksheet, the consent forms, and the COMPLIANCE.md record for **6 years** from the date of publication, in a location accessible to Agape's clinical compliance officer.
 
 ---
 

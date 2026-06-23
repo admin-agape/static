@@ -1,7 +1,7 @@
 /**
  * Agape — Astro Content Collections schema (zod).
  *
- * Three collections are defined:
+ * Four collections are defined:
  *   1. `services` — the four service offerings (IOP, Individualized Counseling,
  *      Anger Management, Reiki & Meditation). Source content in DESIGN.md
  *      Appendix D. Per §10.1 the schema allows (does not require) an optional
@@ -12,6 +12,19 @@
  *      fields make 42 CFR Part 2 compliance structurally enforceable.
  *   3. `crisis` — Phase 2 collection. Currently empty; reserved for surfacing
  *      crisis resources via a future content-driven flow.
+ *   4. `blog` — Tier 3+ feature. Long-form content for SEO and thought
+ *      leadership. Tier 3 is the "Premium" tier that includes a blog
+ *      section per the marketing copy (dev/site/demos/companies.json).
+ *      The orchestrator removes the generated `dist/<client>/tier-{1,2}/blog/`
+ *      directory so the URL 404s cleanly on lower tiers.
+ *
+ * NOTE: A `locations` collection used to live here for multi-office
+ * support. Agape is a single-location practice (815 U.S. 9, Lanoka
+ * Harbor, NJ); the single-office canonical data lives in
+ * `src/config/site.ts` (`address`, `hours`, phone, lat/lng). If a
+ * future client of the demo platform needs multi-location, the
+ * collection can be reintroduced per-client — do NOT add it back here
+ * without re-evaluating the tier profile + company switcher.
  *
  * See TESTIMONIAL-REVIEW.md for the Phase 2 prep workflow and the
  * 42 CFR §2.31 consent form template.
@@ -91,4 +104,33 @@ const testimonials = defineCollection({
   }),
 });
 
-export const collections = { services, testimonials };
+// ─── Tier 3+ collections ─────────────────────────────────────────────
+//
+// `blog` is tier-gated: pages check `site.features.blog` (from
+// src/config/tiers.ts) before rendering. On tiers 1/2, the orchestrator
+// deletes the generated dist/<client>/tier-N/blog/ directory so the URL
+// 404s cleanly. The schema lives here regardless of tier so a future
+// tier change doesn't require schema rework.
+
+const blog = defineCollection({
+  type: 'content',
+  schema: z.object({
+    title: z.string().min(1).max(120),
+    // Astro derives slug from the filename; the `slug` field is
+    // reserved by the content-collection runtime (per ContentSchemaContainsSlugError).
+    summary: z.string().min(10).max(280).describe('Card excerpt on the blog index'),
+    publishedAt: z
+      .string()
+      .datetime()
+      .describe('ISO publish datetime — drives sort order (newest first) and structured data'),
+    author: z.string().default('Agape Counseling Services').describe('Author byline'),
+    readingMinutes: z.number().int().min(1).max(60).describe('Estimated read time in minutes'),
+    tags: z.array(z.string()).default([]).describe('Topic tags — used for filtering and SEO keyword targeting'),
+    featured: z.boolean().default(false),
+    // §10.1 — per-post SEO overrides (each post targets a different
+    // long-tail keyword cluster).
+    seo: seoObject,
+  }),
+});
+
+export const collections = { services, testimonials, blog };

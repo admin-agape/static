@@ -41,12 +41,12 @@ SOFT_MAX_MONOCHROME=8192       # 8 KB
 # Each entry: filename|ceiling_kind|reason|soft_max
 # When §3.5.1.7.4 #2 (designer redraw) ships and these files shrink to
 # ≤ 2 KB, remove the entries.
-SOFT_EXCEPTION=(
-  # Reserved for the future full-color wordmark — currently the canonical
-  # brand asset is company-logo.svg (1,674 bytes, under STRICT_MAX).
-  # When a real wordmark ships, add its row here per §3.5.1.7.2.
-  # Example: "logo-lockup-horizontal.svg|fullcolor|Phase 1 wordmark per §3.5.1.7.2|25600"
-)
+# 2026-06-22 — removed company-logo.svg exception. The client's 2026-06-22
+# component update (separate bird.png + circle.png sources) traced via
+# scripts/trace-company-logo.py yields a 1,218-byte SVG — well under
+# STRICT_MAX. The two-component trace produces tighter path data than
+# the combined-source trace, so the exception is no longer needed.
+SOFT_EXCEPTION=()
 
 if [ ! -d "$BRAND_DIR" ]; then
   echo "[check-logo-size] FAIL: brand directory missing: $BRAND_DIR" >&2

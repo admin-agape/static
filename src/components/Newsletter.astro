@@ -1,0 +1,264 @@
+---
+/**
+ * Agape — Newsletter signup
+ *
+ * Tier 2 module (§3.3.9 in DESIGN.md). Inline email signup with a
+ * consent checkbox. The marketing copy in
+ * `dev/site/demos/companies.json` says "newsletter signup with
+ * auto-reply" \u2014 in production the form posts to Mailchimp or
+ * Buttondown and the user gets a welcome email. In demo mode the form
+ * posts to the dev platform's Pages Function at /api/newsletter (no
+ * third-party API key required, no email is actually sent). The
+ * success affordance is the same polished card a production Mailchimp
+ * confirmation would render \u2014 a "Demo" annotation is only visible
+ * to the dev via a data-mode attribute, never in the user-facing copy.
+ *
+ * Form provider:
+ *   - Demo:        POST {PUBLIC_NEWSLETTER_ENDPOINT} (set by orchestrator)
+ *   - Production:  POST {PUBLIC_NEWSLETTER_ENDPOINT} (set to Mailchimp/Buttondown URL)
+ *
+ * Spam protection:
+ *   - Honeypot field (botcheck) \u2014 matches the contact form's pattern.
+ *     Bots fill it in, humans never see it.
+ *   - Cloudflare Turnstile (optional). When PUBLIC_TURNSTILE_SITE_KEY
+ *     is set, the invisible widget renders and gates submission. When
+ *     unset (always the case for demo builds), the honeypot is the
+ *     baseline spam gate.
+ *
+ * Compliance:
+ *   - §6.7 consent checkbox text is verbatim. The consent makes clear
+ *     that signup is for newsletters/insights only, not for clinical
+ *     communication. Phone-call routing and emergency intake remain on
+ *     the contact form and the §3.3.7 crisis-resources block.
+ *   - The honeypot pattern matches Web3Forms / Mailchimp conventions.
+ *
+ * JS surface:
+ *   - Bundled module (same pattern as ContactForm.astro). Reads
+ *     `data-endpoint` from the form at runtime. Defaults to a
+ *     relative `/api/newsletter` so production builds work out of
+ *     the box without setting PUBLIC_NEWSLETTER_ENDPOINT, as long as
+ *     the client deploys a /api/newsletter endpoint at their domain.
+ */
+
+import { detectLocale, useTranslations } from '~/i18n';
+
+const endpoint = import.meta.env.PUBLIC_NEWSLETTER_ENDPOINT ?? '/api/newsletter';
+const turnstileSiteKey = import.meta.env.PUBLIC_TURNSTILE_SITE_KEY ?? '';
+
+const locale = detectLocale(Astro.url.pathname);
+const translate = useTranslations(locale);
+const isDraft = locale !== 'en';
+
+// Success-state copy is read from data-* attributes populated at render
+// time (set below on the form element). The JS reads them at runtime
+// so the bundled module works for both EN and ES builds without
+// duplication.
+---
+
+<section
+  id="newsletter"
+  aria-labelledby="newsletter-heading"
+  class="border-y border-base-300 bg-secondary py-12 sm:py-16"
+  data-mode="demo"
+>
+  <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+    <div class="max-w-prose">
+      <h2
+        id="newsletter-heading"
+        class="text-2xl font-bold tracking-tight text-neutral sm:text-3xl"
+        data-translation={isDraft ? 'draft' : undefined}
+      >
+        {translate('newsletter.heading')}
+      </h2>
+      <p
+        class="mt-3 text-base text-neutral/80"
+        data-translation={isDraft ? 'draft' : undefined}
+      >
+        {translate('newsletter.body')}
+      </p>
+    </div>
+
+    <form
+      id="agape-newsletter-form"
+      action={endpoint}
+      method="POST"
+      class="mt-6 space-y-4"
+      aria-describedby="newsletter-status"
+      data-endpoint={endpoint}
+      data-success-title={translate('newsletter.successTitle')}
+      data-success-body={translate('newsletter.successBody', { email: 'info@agapenj.org' })}
+      data-submit-label={translate('newsletter.submit')}
+      data-submitting-label={translate('newsletter.submitting')}
+    >
+      <input
+        type="checkbox"
+        name="botcheck"
+        class="hidden"
+        style="position: absolute; left: -9999px; top: -9999px;"
+        tabindex="-1"
+        autocomplete="off"
+        aria-hidden="true"
+      />
+
+      <div class="flex flex-col gap-3 sm:flex-row">
+        <label for="nl-email" class="sr-only">{translate('newsletter.emailLabel')}</label>
+        <input
+          id="nl-email"
+          type="email"
+          name="email"
+          required
+          autocomplete="email"
+          inputmode="email"
+          placeholder={translate('newsletter.emailPlaceholder')}
+          aria-label={translate('newsletter.emailLabel')}
+          class="block h-12 w-full flex-1 rounded-soft border border-base-300 bg-base-100 px-4 text-base text-neutral shadow-sm transition-colors focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+        <button
+          type="submit"
+          id="agape-newsletter-btn"
+          class="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-soft bg-primary px-6 text-base font-semibold text-primary-content shadow-sm transition-transform hover:scale-[1.01] focus-visible:scale-[1.01] motion-reduce:transform-none disabled:cursor-not-allowed disabled:opacity-60"
+          disabled={turnstileSiteKey ? true : false}
+        >
+          {translate('newsletter.submit')}
+        </button>
+      </div>
+
+      <label class="flex items-start gap-3 text-sm text-neutral">
+        <input
+          type="checkbox"
+          id="nl-consent"
+          name="consent"
+          required
+          class="mt-0.5 h-5 w-5 flex-shrink-0 border-base-300 text-primary focus:ring-primary"
+        />
+        <span data-translation={isDraft ? 'draft' : undefined}>
+          {translate('newsletter.consent', { phone: '(609) 242-0086', crisisLine: '988' })}
+        </span>
+      </label>
+
+      {turnstileSiteKey && (
+        <div
+          class="cf-turnstile"
+          data-sitekey={turnstileSiteKey}
+          data-callback="onAgapeNewsletterTurnstileSuccess"
+          data-theme="light"
+        ></div>
+      )}
+
+      <div
+        id="newsletter-status"
+        role="status"
+        aria-live="polite"
+        class="min-h-[1.5rem] text-sm"
+      ></div>
+    </form>
+  </div>
+</section>
+
+<script>
+  // Agape \u2014 Newsletter client-side handler. Bundled module, mirrors
+  // ContactForm.astro's pattern: reads data-endpoint at runtime, posts
+  // form-encoded, surfaces success/error via the aria-live region.
+  //
+  // Success affordance: polished card with the §6.7 confirmation
+  // copy. NOT labelled "demo" in user-facing text \u2014 the dev sees the
+  // demo annotation via data-mode="demo" on the wrapper section.
+  // We swap the form for the success card on success.
+
+  window.onAgapeNewsletterTurnstileSuccess = function () {
+    var btn = document.getElementById('agape-newsletter-btn');
+    if (btn) btn.disabled = false;
+  };
+
+  (function () {
+    var form = document.getElementById('agape-newsletter-form');
+    if (!form) return;
+    var status = document.getElementById('newsletter-status');
+
+    var endpoint = form.getAttribute('data-endpoint') || '/api/newsletter';
+    var successTitle = form.getAttribute('data-success-title') || 'Subscribed!';
+    var successBody = form.getAttribute('data-success-body') || '';
+    var submitLabel = form.getAttribute('data-submit-label') || 'Subscribe';
+    var submittingLabel = form.getAttribute('data-submitting-label') || 'Subscribing...';
+
+    var successTitleEscaped = escapeHtml(successTitle);
+    var successBodyEscaped =
+      escapeHtml(successBody).replace(
+        /info@agapenj\.org/g,
+        '<a href="mailto:info@agapenj.org" class="underline">info@agapenj.org</a>',
+      );
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+
+      var btn = document.getElementById('agape-newsletter-btn');
+      var originalLabel = btn ? btn.textContent : submitLabel;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = submittingLabel;
+      }
+
+      var formData = new FormData(form);
+
+      fetch(endpoint, {
+        method: 'POST',
+        body: formData,
+      })
+        .then(function (res) {
+          return res.json().catch(function () {
+            return { success: false, message: 'Invalid response from newsletter endpoint.' };
+          });
+        })
+        .then(function (data) {
+          if (data && data.success) {
+            var section = document.getElementById('newsletter');
+            if (section) {
+              var inner = section.querySelector(':scope > div');
+              if (inner) {
+                inner.innerHTML =
+                  '<div class="rounded-soft border border-primary/30 bg-primary/10 p-6 sm:p-8">' +
+                  '  <p class="text-base font-semibold text-primary">' + successTitleEscaped + '</p>' +
+                  '  <p class="mt-2 text-base text-neutral">' + successBodyEscaped + '</p>' +
+                  '</div>';
+              }
+            }
+            if (status) {
+              status.textContent = successTitle;
+            }
+          } else {
+            if (btn) {
+              btn.disabled = false;
+              btn.textContent = originalLabel;
+            }
+            if (status) {
+              status.className = 'mt-2 rounded-soft border border-red-300 bg-red-50 p-4 text-sm text-neutral';
+              status.innerHTML =
+                '<p class="font-semibold">Something went wrong.</p>' +
+                '<p class="mt-1">' + (data && data.message ? data.message : 'Please try again or email info@agapenj.org.') + '</p>';
+            }
+          }
+        })
+        .catch(function () {
+          if (btn) {
+            btn.disabled = false;
+            btn.textContent = originalLabel;
+          }
+          if (status) {
+            status.className = 'mt-2 rounded-soft border border-red-300 bg-red-50 p-4 text-sm text-neutral';
+            status.innerHTML =
+              '<p class="font-semibold">Network error.</p>' +
+              '<p class="mt-1">Please try again or email <a href="mailto:info@agapenj.org" class="underline">info@agapenj.org</a>.</p>';
+          }
+        });
+    });
+  })();
+
+  function escapeHtml(s) {
+    return s
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+</script>

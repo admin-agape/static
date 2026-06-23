@@ -12,15 +12,20 @@ cover.
 Usage:
     python3 scripts/pdf_add_toc.py <page.html> [--out page-with-toc.html]
     # then render the output:
-    bash /Users/mo/.mavis/.builtin-skills/pdf/scripts/make.sh render \
+    bash "${BUILTIN_SKILLS_PDF}/scripts/make.sh" render \
         --in page-with-toc.html --out final.pdf
+
+The skill install path comes from the BUILTIN_SKILLS_PDF env var. If unset,
+the scripts render-runbook helper falls back to globbing $HOME for
+any `~/.<dir>/.builtin-skills/pdf` that exists — agent-agnostic, so
+this project doesn't name any specific one in source.
 """
 from __future__ import annotations
 
 import argparse
 import re
 import sys
-from html import escape
+from html import escape, unescape
 from pathlib import Path
 
 
@@ -107,6 +112,9 @@ def build_toc_nav(headings: list[tuple[int, str, str]]) -> str:
     for level, text, hid in headings:
         # Indent H3s by one level.
         cls = "toc-h2" if level == 2 else "toc-h3"
+        # Decode HTML entities (e.g. &amp; → &) before re-escaping,
+        # otherwise "&" appears literally as "&amp;" in the rendered TOC.
+        text = unescape(text)
         rows.append(
             f'<li class="{cls}"><a href="#{escape(hid)}">{escape(text)}</a></li>'
         )
@@ -177,7 +185,7 @@ nav.toc .toc-title {
 }
 nav.toc ol.toc-list {
   list-style: decimal-leading-zero;
-  padding-left: 1.5rem;
+  padding-left: 3rem;
   margin: 0;
 }
 nav.toc li.toc-h2 {

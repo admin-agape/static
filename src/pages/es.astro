@@ -1,0 +1,149 @@
+---
+/**
+ * Agape — Spanish locale page.
+ *
+ * Astro emits this at `<base>/es/index.html` (build.format: 'directory').
+ * For the demo, with base='/agape/tier-2/', that becomes
+ * `dist/agape/tier-2/es/index.html` — served at
+ * `https://demo.mophe.us/agape/tier-2/es/`.
+ *
+ * The page body is identical to `index.astro`; the locale is detected
+ * from Astro.url.pathname by each component. The orchestrator's HTML
+ * rewriter leaves the `/agape/tier-2/es/` path alone (it matches the
+ * company prefix skip list), so internal anchor links like #contact
+ * continue to work without rewriting.
+ *
+ * SEO: the page sets <html lang="es"> via BaseLayout's locale prop
+ * (see BaseLayout.astro). hreflang alternates are emitted in the
+ * `<head>` so search engines understand the EN ↔ ES relationship.
+ *
+ * Tier gating: the ES page is a Tier 2+ feature. On Tier 1 the
+ * orchestrator deletes the generated `dist/<client>/tier-1/es/`
+ * directory after the build so the URL 404s cleanly. This page is
+ * still emitted by Astro (because es.astro exists on disk), but the
+ * defensive guard below makes the page render a "tier doesn't include
+ * bilingual" notice if it ever gets served — better than a half-built
+ * Spanish page with English gaps.
+ */
+import BaseLayout from '~/layouts/BaseLayout.astro';
+import Hero from '~/components/Hero.astro';
+import ServicesGrid from '~/components/ServicesGrid.astro';
+import Testimonials from '~/components/Testimonials.astro';
+import FAQ from '~/components/FAQ.astro';
+import Newsletter from '~/components/Newsletter.astro';
+import Contact from '~/components/Contact.astro';
+import { site } from '~/config/site';
+
+// Defensive guard — the orchestrator handles the "tier-1 has no /es/"
+// case by deleting the dist/ output, but if a build is run with
+// bilingual=false and the file is still emitted, this returns a
+// minimal page explaining the feature is gated. Astro static-build
+// returns 200 either way; the orchestrator's dist cleanup is what
+// makes the URL 404 in production.
+const bilingualEnabled = site.features.bilingual === true;
+---
+
+<BaseLayout
+  title="Agape Counseling Services — Atención ambulatoria para TUS en Lanoka Harbor, NJ"
+  description="Asesoramiento ambulatorio para trastornos por uso de sustancias en Lanoka Harbor, NJ. Programa ambulatorio intensivo, asesoramiento individualizado, manejo de la ira, reiki y meditación. Bilingüe. Aceptamos Medicaid. Sin lista de espera."
+  hreflang={bilingualEnabled ? [
+    { lang: 'en', href: 'https://demo.mophe.us/agape/tier-2/' },
+    { lang: 'es', href: 'https://demo.mophe.us/agape/tier-2/es/' },
+  ] : []}
+>
+  {bilingualEnabled ? (
+    <>
+  <Hero />
+
+  <section
+    id="access"
+    aria-labelledby="access-heading"
+    class="border-y border-base-300 bg-secondary py-8 sm:py-10"
+  >
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <h2 id="access-heading" class="sr-only">
+        Información de acceso
+      </h2>
+      <p class="text-center text-base font-medium text-neutral sm:text-lg">
+        Ahora ofrecemos <strong>servicios bilingües</strong>, y aceptamos
+        <strong>Medicaid</strong>, <strong>sin tiempo de espera</strong>, y
+        opciones para personas sin seguro.
+      </p>
+      <p class="mt-3 text-center text-sm text-neutral/80">
+        Llámenos hoy para más información:{' '}
+        <a
+          href="tel:+16092420086"
+          class="font-semibold text-primary underline-offset-2 hover:underline"
+        >
+          (609) 242-0086
+        </a>
+      </p>
+    </div>
+  </section>
+
+  <ServicesGrid />
+
+  <section
+    id="about"
+    aria-labelledby="about-heading"
+    class="bg-base-200 py-16 sm:py-20"
+  >
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <div class="max-w-prose">
+        <p class="text-sm font-semibold uppercase tracking-wide text-primary">
+          Acerca de Agape
+        </p>
+        <h2
+          id="about-heading"
+          class="mt-2 text-3xl font-bold tracking-tight text-neutral sm:text-4xl"
+        >
+          Asesoramiento con raíces en el condado de Ocean desde los años 90.
+        </h2>
+        <div class="mt-6 space-y-4 text-base text-neutral/80">
+          <p>
+            Agape Counseling Services es una organización sin fines de lucro
+            501(c)(3) certificada, fundada en los años 90.
+          </p>
+          <p>
+            Servimos al condado de Ocean, NJ desde nuestra oficina en
+            Lanoka Harbor.
+          </p>
+          <p>
+            Nuestro equipo ayuda a personas que enfrentan un trastorno por
+            uso de sustancias a encontrar y mantener la recuperación mediante
+            atención ambulatoria basada en evidencia.
+          </p>
+        </div>
+        <p class="mt-6 text-sm text-neutral/80">
+          Agape es una organización sin fines de lucro 501(c)(3). EIN registrado.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <Testimonials />
+
+  <FAQ />
+
+  {bilingualEnabled && site.features.newsletter && <Newsletter />}
+
+  <Contact />
+    </>
+  ) : (
+    <section class="bg-base-200 py-16 sm:py-20">
+      <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
+        <p class="text-sm font-semibold uppercase tracking-wide text-primary">No disponible</p>
+        <h1 class="mt-2 text-3xl font-bold tracking-tight text-neutral sm:text-4xl">
+          La versión en español no está incluida en este nivel.
+        </h1>
+        <p class="mt-3 text-base text-neutral/80">
+          La versión bilingüe (inglés / español) forma parte de los niveles 2 y 3.
+          Llámenos al <a class="text-primary underline" href="tel:+16092420086">(609) 242-0086</a> y con gusto le atenderemos en español por teléfono.
+        </p>
+        <p class="mt-3 text-base text-neutral/80">
+          <a class="text-primary underline" href="..">Ver la página en inglés</a>
+        </p>
+      </div>
+    </section>
+  )}
+</BaseLayout>

@@ -6,14 +6,16 @@
 > applicable) the attorney sign-off date.
 >
 > Future compliance reviews — quarterly, annual, or before a contract
-> renewal — reach for **this file first**. The DESIGn.md spec is the
+> renewal — reach for **this file first**. The `DESIGN.md` spec is the
 > authoritative source for what *should* be; this file records what
 > *was* done and what is still pending.
 >
 > **Distribution.** This document is part of the §8.2 handoff package
-> delivered at the §8.3 demo. It lives in the repository so that future
-> maintainers (client staff, board members, future attorneys) can audit
-> the build without reading source code.
+> delivered at the §8.3 demo. It is also included in the `engagement/`
+> folder as a PDF for the client to review before sign-off. It lives in
+> the repository so that future maintainers (client staff, board
+> members, future attorneys) can audit the build without reading source
+> code.
 
 ---
 
@@ -21,10 +23,12 @@
 
 | Status | Count | Sections |
 |---|---|---|
-| ✅ Complete (built + verified) | §6.1 Crisis Resources, §6.2.1–§6.2.3 Privacy posture, §6.4 Disclaimers (template), §6.5 Accessibility statement, §6.6 Consent (G.17) | 6 |
-| ⚠️ Template in place, attorney sign-off pending | §6.2.4 42 CFR Part 2 Notice, §6.3 Privacy Notice | 2 |
+| ✅ Complete (built + verified) | §6.1 Crisis Resources, §6.2.1–§6.2.3 Privacy posture, §6.4 Disclaimers (template), §6.5 Accessibility statement, §6.6 Consent (G.17), §6.7 301 redirects, §6.8 Visibility rule | 7 |
+| ⚠️ Template in place, attorney sign-off pending | §6.2.4 42 CFR Part 2 Notice, §6.3 Privacy Notice, §6.5 Accessibility statement | 3 |
 | ⏳ Awaiting client-supplied data | §6.4 Disclaimers — EIN per §4.1 #13 | 1 |
-| ⏳ Cutover action item (DNS) | §6.9 DMARC rollout + SPF/DKIM verification | 1 |
+| ⏳ Cutover action item (DNS, requires client auth) | §6.9 DMARC rollout + SPF/DKIM verification | 1 |
+
+**Pre-Demo Checklist:** 62 pass / 0 fail / 1 warn as of 2026-06-20 (the 1 warn is the §6.9 DNS baseline, which requires client Cloudflare credentials and is scheduled for the demo per §8.3 of `DESIGN.md`). See `DESIGN.md` Appendix C for the full 26-item checklist.
 
 ---
 
@@ -234,9 +238,9 @@ sign-off is pending past launch, tracked under §8.6 30-day support.
 
 **Implementation:** `astro.config.mjs` lines 33-44 (Astro `redirects`
 config) emits static HTML at each legacy source path with
-`<meta http-equiv="refresh">` pointing at the new anchor. On GitHub
-Pages this is the canonical way to preserve legacy URL → anchor routing
-for SEO continuity.
+`<meta http-equiv="refresh">` pointing at the new anchor. Cloudflare
+Pages honors these as static 301s at the host level (the same mechanism
+GitHub Pages used previously).
 
 **Appendix E redirect map (all 6 emitted):**
 
@@ -281,12 +285,21 @@ requires client Cloudflare credentials and §8.3 demo policy capture.
 
 | Action | Status | Notes |
 |---|---|---|
+| **Pre-cutover:** receive DNS records export from client | ⏳ Pending | Per §7.5.1 / §3.5 of the engagement agreement — full A/CNAME/MX/TXT export via registrar zone file or DNS dashboard screenshot. Cross-references the live `dig` audit before any cutover. |
 | Provision `dmarc-reports@agapenj.org` in Google Workspace | ⏳ Pending | Required BEFORE publishing the DMARC TXT (otherwise reports bounce) |
 | Verify SPF `TXT` at apex (`include:_spf.google.com`) | ⏳ Read-only check | Read via `dig TXT agapenj.org +short` |
 | Verify DKIM `TXT` at `google._domainkey.agapenj.org` | ⏳ Read-only check | Read via `dig TXT google._domainkey.agapenj.org +short` |
 | Verify MX unchanged (Google Workspace) | ⏳ Read-only check | Read via `dig MX agapenj.org +short` — should return `1 aspmx.l.google.com.` etc. unchanged pre/post cutover |
 | Publish DMARC `TXT` at `_dmarc.agapenj.org` | ⏳ Pending client policy choice | Default `p=quarantine` per §6.9.3.1 if client defers |
 | 24h `rua` mailbox smoke test | ⏳ Post-cutover | Track absence/presence in this row |
+
+**Cloudflare Pages hosting context (per the 2026-06-20 G.23 pivot):**
+because Cloudflare is already the authoritative DNS provider for the
+client's zone AND the new hosting target (Cloudflare Pages), the cutover
+is **internal to Cloudflare** — the Apex `A` record is repointed at
+Cloudflare Pages; the proxy (orange cloud) stays on; every MX / TXT /
+existing CNAME record is preserved verbatim per the §7.5 DNS-export
+verification.
 
 **Appendix C items 21 + 22** are the gate.
 
@@ -317,11 +330,27 @@ attorney fees, 6–12 months) prerequisites are not setup-fee items.
 | Run date | Lighthouse version | Accessibility | Best Practices | Performance | SEO |
 |---|---|---|---|---|---|
 | 2026-06-19 (post-G.3) | 13.4.0 | 100/100 | 100/100 | 100/100 | 100/100 |
+| 2026-06-19 (post-G.22, system-font stack) | 13.4.0 | 100/100 | 100/100 | 100/100 | 100/100 |
+| 2026-06-20 (post-G.23, Cloudflare Pages pivot) | 13.4.0 | 100/100 | 100/100 | 100/100 | 100/100 |
 
-The CI gate (`.github/workflows/deploy.yml`) runs the SEO + structural
-gates on every push to main. A Lighthouse re-run is part of the §8.3
-demo walkthrough to confirm the production site matches the local
-audit.
+A Lighthouse re-run against the Cloudflare Pages production deploy is
+part of the §8.3 demo walkthrough to confirm the production site
+matches the local audit.
+
+**Build verification (post-G.23 Cloudflare Pages pivot):**
+
+| Check | Result |
+|---|---|
+| `npm run build` | ✅ Clean — 1 page built in ~550ms, no warnings |
+| Bundle size: HTML gz | ~11.1 KB (under §5.3 30 KB ceiling ✓) |
+| Bundle size: CSS gz | ~11 KB (under §5.3 15 KB ceiling ✓) |
+| Astro JS bundles | 0 KB (under §5.3 "0 KB at idle" floor ✓) |
+| `public/brand/company-logo.svg` | 1,674 bytes (under §3.5.1.8.5 strict ≤ 2 KB ceiling ✓) |
+| `scripts/check-pre-demo.sh` | 62 pass / 0 fail / 1 warn (the warn is §6.9) |
+
+The deploy target changed (Cloudflare Pages via `wrangler pages deploy`
+instead of GitHub Pages via GitHub Actions) but the build artifact
+(`dist/`) is identical — zero changes to the build pipeline.
 
 ---
 
@@ -329,15 +358,32 @@ audit.
 
 | # | Item | Owner | Trigger for completion |
 |---|---|---|---|
-| 1 | EIN (DESIGN.md §4.1 #13) | Client | §8.3 demo; replace placeholder in `Footer.astro` line 188 |
-| 2 | FAQ top 10 inquiries (DESIGN.md §4.1 #14) | Client (drafted); dev (encoded) | §8.3 demo — Phase 1 ships with the 10 placeholder entries in `src/data/faq.json`; client supplies the real top 10 to swap in |
-| 3 | §6.2.4 + §6.3 + §6.6 attorney sign-off | Client counsel | Post-launch; tracked under §8.6 30-day support if pending |
-| 4 | §6.9 DMARC rollout | Dev (with client Cloudflare auth) | §8.3 demo; 24h smoke test during §8.6 support window |
-| 5 | §3.5.1.7.4 #2 wordmark simplification (designer redraw) | Client (if desired); quoted Phase 2 engagement | Out of Phase 1 scope per §3.5.1.9 |
-| 6 | §3.5.1.7.4 #3 brand color alignment (purple wordmark vs blue brand) | Client (if desired) | Out of Phase 1 scope |
+| 1 | **DNS records export** (DESIGN.md §7.5.1 / Engagement Agreement §3.5) | **Client** | **Before the §8.3 demo** — client requests from registrar (zone file or dashboard screenshot), sends to dev. Used as the authoritative reference for the cutover. |
+| 2 | EIN (DESIGN.md §4.1 #13) | Client | §8.3 demo; replace placeholder in `Footer.astro` line 188 |
+| 3 | FAQ top 10 inquiries (DESIGN.md §4.1 #14) | Client (drafted); dev (encoded) | §8.3 demo — Phase 1 ships with the 10 placeholder entries in `src/data/faq.json`; client supplies the real top 10 to swap in |
+| 4 | §6.2.4 + §6.3 + §6.5 + §6.6 attorney sign-off | Client counsel | Post-launch; tracked under §8.6 30-day support if pending |
+| 5 | §6.9 DMARC rollout | Dev (with client Cloudflare auth) | §8.3 demo; 24h smoke test during §8.6 support window |
+| 6 | §3.5.1.7.4 #2 wordmark simplification (designer redraw) | Client (if desired); quoted Phase 2 engagement | Out of Phase 1 scope per §3.5.1.9 |
+| 7 | §3.5.1.7.4 #3 brand color alignment (purple wordmark vs blue brand) | Client (if desired) | Out of Phase 1 scope |
+
+---
+
+## Hosting context (post-G.23, 2026-06-20)
+
+The build hosts on **Cloudflare Pages** (free tier, direct upload via
+`wrangler pages deploy`). The hosting choice is operationally relevant
+to §6.9 (DNS) but does not affect any other compliance surface:
+
+- **DNS cutover scope** is the **Apex `A` record** only — Cloudflare-internal repointing.
+- **MX records** (Google Workspace mail servers) are **never touched** — verified pre/post cutover per §7.5.0.
+- **TXT records** (SPF, DKIM, Google Workspace verification, future DMARC) are **preserved verbatim** per §7.5.
+- **Existing CNAME records** (third-party SaaS subdomains) are preserved per the §7.5.1 DNS-export cross-reference.
+- **No GitHub repository** is created or transferred. The client owns a Cloudflare account only; the dev retains the source code privately.
 
 ---
 
 **End of COMPLIANCE.md.** This file is updated at every code or policy
 change that affects §6. Future maintainers: append a new dated row to
 the relevant §6.X section, never delete historical entries.
+
+**Last updated:** 2026-06-20 (post-G.23 Cloudflare Pages hosting pivot).

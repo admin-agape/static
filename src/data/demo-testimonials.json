@@ -1,0 +1,40 @@
+{
+  "_comment": [
+    "DEMO-ONLY testimonials. Rendered by src/components/Testimonials.astro ONLY when BUILD_TARGET=demo-*.",
+    "",
+    "Production builds (BUILD_TARGET=prod-N) NEVER render these. The production path goes through the strict 42 CFR Part 2 schema in src/content/config.ts (consent_date + consent_hash required). These JSON entries deliberately do NOT satisfy that schema \u2014 they exist outside the content collection so the production build's zod validation is unaffected.",
+    "",
+    "All three entries below are redacted versions of LOW/MEDIUM-risk legacy testimonials from docs/TESTIMONIAL-REVIEW.md. HIGH-risk entries (Justine W., Chris L.) are explicitly excluded per the review document's recommendations.",
+    "",
+    "Each entry has a 'demo: true' flag and a 'redaction_notes' field so a future compliance review can find and replace these with sourced content + 42 CFR \u00a72.31 consent before any production launch.",
+    "",
+    "Anchored on TESTIMONIAL-REVIEW.md \u00a71 (#3 John O., #5 Matt M., #7 Jerry L.) and \u00a73 (the MODIFY rules \u2014 drop staff names, drop program-specific terms like 'IOP', drop patient self-identification).",
+    ""
+  ],
+  "testimonials": [
+    {
+      "demo": true,
+      "name": "John O.",
+      "service": "Outpatient counseling",
+      "quote": "Great facility, amazing people, and real-world down-to-earth counselors. I'm grateful for the support I received here.",
+      "redaction_notes": "Dropped 'part of the Agape Services family' framing (\u00a73 MODIFY rule: remove program self-identification). Source: TESTIMONIAL-REVIEW.md \u00a71 #3.",
+      "anchored_on": "TESTIMONIAL-REVIEW.md \u00a71 row #3 (John O., LOW\u2013MEDIUM risk)"
+    },
+    {
+      "demo": true,
+      "name": "Matt M.",
+      "service": "Individualized counseling",
+      "quote": "I've been here a couple of times for counseling. The staff are great \u2014 very friendly and easy to talk to. I would certainly recommend them to anyone who needs support. Thank you for all that you've done for me.",
+      "redaction_notes": "Fixed typos (acouple \u2192 a couple, couseling \u2192 counseling, percieve \u2192 perceive). Dropped the 'IOP' program reference (\u00a73 MODIFY rule). Dropped the meta-rant about reviews skewing negative. Source: TESTIMONIAL-REVIEW.md \u00a71 #5.",
+      "anchored_on": "TESTIMONIAL-REVIEW.md \u00a71 row #5 (Matt M., MEDIUM risk)"
+    },
+    {
+      "demo": true,
+      "name": "Jerry L.",
+      "service": "Anger management",
+      "quote": "I like the service \u2014 really good counselors, and very helpful.",
+      "redaction_notes": "Light grammar cleanup (\u00a73 MODIFY rule for LOW-risk entries). Source: TESTIMONIAL-REVIEW.md \u00a71 #7.",
+      "anchored_on": "TESTIMONIAL-REVIEW.md \u00a71 row #7 (Jerry L., LOW risk)"
+    }
+  ]
+}

@@ -23,6 +23,11 @@
  *
  * Verification per §3.5.1.8.5: each output file must measure ≤ 2048 bytes
  * (CI check via `wc -c` per Appendix C item 23).
+ *
+ * svgo v4 syntax: `removeViewBox` is no longer an override of
+ * preset-default — it's a top-level plugin. We add it after
+ * preset-default with `params: false` to keep the viewBox intact
+ * (Logo.astro relies on it to scale via the size prop).
  */
 export default {
   multipass: true,
@@ -35,14 +40,26 @@ export default {
       name: 'preset-default',
       params: {
         overrides: {
-          // Keep viewBox (so the Logo.astro size prop scales correctly)
-          removeViewBox: false,
           // Keep IDs that might be referenced by other elements
           cleanupIds: { minify: false },
+          // 1-decimal precision — visually lossless at the 64-1280px
+          // display range, and keeps the dove + ring trace under the
+          // §3.5.1.8.5 strict ceiling of 2,048 bytes. 2 decimals is
+          // indistinguishable at any practical zoom level but doubles
+          // the path-data byte count; 0 decimals causes the long
+          // curved runs on the dove's wing + tail to show as visible
+          // faceting.
+          cleanupNumericValues: { floatPrecision: 1 },
+          // Bake transforms into path coords (smaller + faster to render).
+          convertPathData: { transformPrecision: 1, floatPrecision: 1 },
         },
       },
     },
     'removeDimensions',     // forces consumers to size via width/height attributes
     'sortAttrs',
+    {
+      name: 'removeViewBox',
+      params: false,         // keep viewBox — Logo.astro needs it
+    },
   ],
 };

@@ -3,16 +3,21 @@
  * Agape — Navbar
  *
  * Sticky top navigation bar (DESIGN.md §3.2 component hierarchy). Composed
- * of: brand mark, anchor links to the four primary sections, and a Call CTA
- * button.
+ * of: brand mark, anchor links to the page sections (top→bottom order,
+ * Tier 2+ adds the Newsletter link), an EN/ES language toggle, and a
+ * Call CTA button.
  *
  * The whole bar is `sticky top-0` so the Call CTA is always on screen as
  * the user scrolls — it is the primary conversion target on every viewport.
- * There is no separate mobile-only floating CTA: the previous
- * StickyCallButton.astro approach caused jitter (CTA reflowing as the
- * scroll position changed) and a pulsing animation that distracted from
- * the content. The inline navbar CTA stays put, never pulses, and works
- * identically on mobile, tablet, and desktop.
+ *
+ * Locale: links, CTA labels, and the language toggle text come from the
+ * i18n catalog. The toggle links to the same page in the other locale
+ * — on /agape/tier-2/ it points to /agape/tier-2/es/, and vice versa.
+ *
+ * Tier-aware nav links: Tier 1 ships 5 links (services, about, faq,
+ * contact, legal). Tier 2/3 add the Newsletter link (newsletter section
+ * is gated on `site.features.newsletter === true`). Each link points at
+ * a real section anchor in the page; no link to a missing section.
  *
  * Accessibility:
  *   - Semantic <nav> + aria-label
@@ -20,6 +25,8 @@
  *   - Tap target ≥ 44px per WCAG 2.5.5 (mobile)
  *   - Focus-visible outline (defined in global.css) for keyboard users
  */
+import { detectLocale, useTranslations } from '~/i18n';
+import { site } from '~/config/site';
 
 interface Props {
   /** Override the visible brand name in the navbar. */
@@ -28,60 +35,183 @@ interface Props {
 
 const { brandName = 'Agape Counseling Services' } = Astro.props;
 
-// Anchor links driven by §3.1 (Page Model). Order matches reading order
-// on mobile (primary nav, not buried under a hamburger). The `#faq`
-// link is unconditional — the §3.3.8 FAQ section is required at launch
-// and ships with placeholder entries, so the link is always meaningful.
-const navLinks = [
-  { href: '#about', label: 'About' },
-  { href: '#services', label: 'Services' },
-  { href: '#faq', label: 'FAQ' },
-  { href: '#contact', label: 'Contact' },
-  { href: '#legal', label: 'Legal' },
-];
+// The full company name is rendered on every viewport. The earlier mobile
+// layout dropped the inline nav links to a second row below, which gave
+// the brand-name column enough room to keep "Agape Counseling Services"
+// readable on phones. No more shortName/brandName split — the full brand
+// fits, and the dual-span + breakpoint visibility is no longer needed.
 
-// Resolve the active link from the current URL hash (works on initial
-// page load and on hashchange — pure CSS :target would not give us
-// aria-current). Falls back to no-active state for the home anchor.
+const locale = detectLocale(Astro.url.pathname);
+const translate = useTranslations(locale);
+const isDraft = locale !== 'en';
+
+// Tier gating — the EN/ES language toggle is a Tier 2+ feature. On
+// Tier 1 the toggle is hidden (no /es/ page exists, so a link to it
+// would 404). The flag is read from the merged site config — kitchen-
+// sink defaults + tier profile overlay.
+const showLocaleToggle = site.features.bilingual === true;
+
+// Per-page gating — some tier-3 pages (blog) ship English-only content
+// on the demo. The hreflang array on those pages is empty, so the
+// alt-locale toggle would 404. Detect by path: the multi-page routes
+// that have an ES equivalent are the home (and the /es/ home); /blog/
+// is EN-only on the demo build, so the toggle should not appear there.
+const pathHasEsVersion = !/(?:^|\/)blog\//.test(Astro.url.pathname);
+const showLocaleToggleFinal = showLocaleToggle && pathHasEsVersion;
+
+// Anchor links driven by §3.1 (Page Model), ordered TOP→BOTTOM of the
+// rendered page. Each link points at a real section anchor in
+// src/pages/index.astro:
+//
+//   1. #services   — ServicesGrid component
+//   2. #about      — About section (inline in index.astro)
+//   3. #faq        — FAQ component
+//   4. #newsletter — Newsletter component (Tier 2+ only)
+//   5. #contact    — Contact component
+//   6. #legal      — Footer (id="legal" lives on <footer>)
+//
+// Hero is intentionally not in the list — the brand link in the same
+// row already anchors to #top, and a separate "Home" link would be
+// redundant. AccessBanner (#access) is omitted because it's a notice,
+// not a navigable section; it's the first thing below the hero.
+//
+// Tier 2+ gets the #newsletter link because the Newsletter section
+// only renders when `site.features.newsletter === true` (see
+// src/pages/index.astro line 127). Tier 1 has fewer links because
+// that section doesn't exist on the page — a link to a missing
+// anchor would silently no-op, but it's better to not show it at all.
+const baseNavLinks = [
+  { href: '#services', label: translate('nav.services') },
+  { href: '#about', label: translate('nav.about') },
+  { href: '#faq', label: translate('nav.faq') },
+  { href: '#contact', label: translate('nav.contact') },
+  { href: '#legal', label: translate('nav.legal') },
+];
+const showNewsletterNav = site.features.newsletter === true;
+const navLinks = showNewsletterNav
+  ? [
+      baseNavLinks[0], // #services
+      baseNavLinks[1], // #about
+      baseNavLinks[2], // #faq
+      { href: '#newsletter', label: translate('nav.newsletter') },
+      baseNavLinks[3], // #contact
+      baseNavLinks[4], // #legal
+    ]
+  : baseNavLinks;
+
+// Language toggle — the link points at the same page in the OTHER
+// locale. We strip a trailing /es/ from the current path and append
+// /es/ to get the alternate URL. For the EN page, the toggle target is
+// the base path with /es/ appended. For the ES page, the toggle target
+// is the base path with /es/ stripped. The rewriter handles the path
+// correctly because both shapes are under the company prefix.
+const altLocale = locale === 'es' ? 'en' : 'es';
+const altLocaleLabel = altLocale === 'es' ? translate('nav.lang.es') : translate('nav.lang.en');
+const altLocalePath = locale === 'es'
+  ? Astro.url.pathname.replace(/\/es\/?$/, '/') || '/'
+  : Astro.url.pathname.replace(/\/?$/, '/') + 'es/';
+const altToggleTitle = altLocale === 'es' ? translate('nav.lang.toggleToSpanish') : translate('nav.lang.toggleToEnglish');
+
+// Resolve the active link from the current URL hash.
 const currentHash = Astro.url.hash;
 ---
 
 <header class="sticky top-0 z-40 w-full border-b border-base-300 bg-base-100/95 backdrop-blur supports-[backdrop-filter]:bg-base-100/80">
   <nav
-    class="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6 lg:px-8"
+    class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8"
     aria-label="Primary"
   >
-    {/* Brand mark + company name — DESIGN.md §3.5.1.1 (company-logo.svg is the
-        "new Company Logo per user directive 2026-06-19") + §3.5.1.7.3.2 (Navbar
-        wired to the brand logo on 2026-06-19 07:19 ET) + §3.5.1.12 (Monterro
-        brand-font lock-in for the company name). The `<img>` is decorative
-        (alt="" + aria-hidden="true") and the parent `<a>` carries the
-        accessible name `aria-label="{brandName} — back to top"` — Lighthouse
-        `link-name` audit flagged the missing label on narrow viewports before
-        this fix. */}
-    <a
-      href="#top"
-      class="flex items-center gap-2 font-semibold text-primary no-underline"
-      aria-label={`${brandName} — back to top`}
-    >
-      <img src="/brand/company-logo.svg" alt="" width="32" height="32" class="h-8 w-8" aria-hidden="true" />
-      {/* Brand-name span — G.22 system-font relaxation. The letter-spacing
-          override remains to give the brand name visual distinction within
-          the system stack; the font-family is no longer overridden because
-          the §3.5.1.12 Montserrat-via-@fontsource architecture was removed. */}
-      <span class="hidden text-base tracking-tight sm:inline" style="letter-spacing: -0.01em;">{brandName}</span>
-    </a>
+    {/*
+      Top row — brand | spacer | ES toggle | Call CTA.
 
-    {/* Primary nav links — visible on tablet and up. On mobile these
-        collapse into the footer / inline above-the-fold section anchors
-        to keep tap targets large and the top bar uncluttered. */}
-    <ul class="hidden items-center gap-1 md:flex">
+      The ES/EN toggle is in its own grid column (auto width) so it
+      doesn't shift when the Call CTA's text changes width between
+      "Call" (en) and "Llamar" (es). The grid is `1fr auto auto`:
+      brand stretches, ES + Call are sized to their content. When
+      the Call CTA gets wider in Spanish, only the brand column
+      shrinks to compensate — the ES toggle stays anchored in its
+      column at the same screen-x position relative to the right
+      edge.
+
+      On mobile (< md), the nav links move to a second row below
+      (a horizontal scrollable row — see the "md:hidden" block
+      below). On md+, the nav links go inline between the brand
+      and the ES toggle, hiding the bottom row.
+    */}
+    <div class="grid h-16 grid-cols-[1fr_auto_auto] items-center gap-3 sm:gap-4">
+      {/* Brand mark + company name — DESIGN.md §3.5.1.1. The
+          `<img>` is decorative (alt="" + aria-hidden) and the parent
+          `<a>` carries the accessible name. The full company name
+          renders on every viewport (sm+ and <sm alike) — the new
+          mobile layout drops the inline nav links to a second row
+          below, which gives the brand-name column enough room. */}
+      <a
+        href="#top"
+        class="flex min-w-0 items-center gap-2 font-semibold text-primary no-underline"
+        aria-label={translate('nav.brandLabel')}
+      >
+        <img src="/brand/company-logo.svg" alt="" width="32" height="32" class="h-8 w-8 shrink-0" aria-hidden="true" />
+        {/* Full brand name on all viewports. min-w-0 + truncate is
+            a defensive belt-and-suspenders for any future brand-name
+            length change. Text size is intentionally one step smaller
+            than the sm+ size used previously (text-sm vs text-base) so
+            "Agape Counseling Services" (24 chars) fits alongside the
+            Call CTA without horizontal scroll on a 360px viewport. */}
+        <span class="truncate text-sm font-semibold tracking-tight text-neutral sm:text-base" style="letter-spacing: -0.01em;">{brandName}</span>
+      </a>
+
+      {/* EN/ES language toggle — own grid column, fixed position
+          regardless of Call CTA width. Tier-gated: hidden on Tier 1. */}
+      {showLocaleToggleFinal && (
+        <a
+          href={altLocalePath}
+          class="inline-flex h-10 items-center justify-center rounded-soft px-2.5 text-sm font-semibold text-neutral transition-colors hover:bg-base-200 hover:text-primary"
+          aria-label={altToggleTitle}
+          data-translation={isDraft ? 'draft' : undefined}
+          title={altToggleTitle}
+        >
+          {altLocaleLabel}
+        </a>
+      )}
+
+      {/* Call CTA — primary conversion target, always rendered at
+          the end of the sticky navbar. Own grid column. */}
+      <a
+        href="tel:+16092420086"
+        class="inline-flex h-10 items-center gap-2 rounded-soft bg-primary px-3 text-sm font-semibold text-primary-content shadow-sm transition-transform hover:scale-[1.02] focus-visible:scale-[1.02] motion-reduce:transform-none sm:px-4"
+        aria-label={translate('nav.callCta')}
+      >
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
+        </svg>
+        <span class="hidden whitespace-nowrap sm:inline">{translate('nav.callCtaFull')}</span>
+        <span class="whitespace-nowrap sm:hidden">{translate('nav.callCtaShort')}</span>
+      </a>
+    </div>
+
+    {/* Nav links row — mobile only (< md). On md+ these go inline
+        in the top row between brand and ES toggle (the inline
+        inline-flex block below). On mobile, a second row in the
+        navbar with horizontally scrollable links. overflow-x-auto
+        + scroll-snap keeps the touch experience tight; no JS. */}
+    <ul class="-mx-1 flex items-center gap-1 overflow-x-auto border-t border-base-300 py-2 md:hidden">
       {navLinks.map((link) => (
-        <li>
+        <li class="shrink-0">
           <a
             href={link.href}
             class:list={[
-              'inline-flex h-10 items-center rounded-soft px-3 text-sm font-medium text-neutral transition-colors hover:bg-base-200 hover:text-primary',
+              'inline-flex h-9 items-center rounded-soft px-3 text-sm font-medium text-neutral transition-colors hover:bg-base-200 hover:text-primary',
               currentHash === link.href && 'text-primary',
             ]}
             aria-current={currentHash === link.href ? 'true' : undefined}
@@ -92,31 +222,27 @@ const currentHash = Astro.url.hash;
       ))}
     </ul>
 
-    {/* Call CTA — primary conversion target, always rendered inline at
-        the end of the sticky navbar. No mobile-only duplicate: a single
-        inline button in the sticky bar stays put during scroll and never
-        competes with the page content visually. */}
-    <a
-      href="tel:+16092420086"
-      class="inline-flex h-10 items-center gap-2 rounded-soft bg-primary px-4 text-sm font-semibold text-white shadow-sm transition-transform hover:scale-[1.02] focus-visible:scale-[1.02] motion-reduce:transform-none"
-      aria-label="Call Agape Counseling Services at (609) 242-0086"
-    >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="18"
-        height="18"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/>
-      </svg>
-      <span class="hidden sm:inline">(609) 242-0086</span>
-      <span class="sm:hidden">Call</span>
-    </a>
+    {/* Desktop nav links (md+) — inline in the navbar, in a single
+        row above the brand row. Uses absolute positioning so the
+        brand row's grid layout above stays clean. Hides on mobile
+        because the mobile links are in the row above. */}
+    <div class="hidden md:block">
+      <ul class="flex items-center justify-center gap-1 border-t border-base-300 py-2">
+        {navLinks.map((link) => (
+          <li>
+            <a
+              href={link.href}
+              class:list={[
+                'inline-flex h-9 items-center rounded-soft px-3 text-sm font-medium text-neutral transition-colors hover:bg-base-200 hover:text-primary',
+                currentHash === link.href && 'text-primary',
+              ]}
+              aria-current={currentHash === link.href ? 'true' : undefined}
+            >
+              {link.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </div>
   </nav>
 </header>

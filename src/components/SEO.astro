@@ -38,6 +38,10 @@ interface Props {
   twitterCard?: 'summary' | 'summary_large_image';
   /** Optional noindex flag. Default false (index, follow). */
   noindex?: boolean;
+  /** Locale for og:locale. Default: 'en'. Pass 'es' from the Spanish
+   *  page so Open Graph correctly tags the variant. The full locale
+   *  identifier (e.g., en_US, es_US) is composed below. */
+  locale?: 'en' | 'es';
 }
 
 const {
@@ -48,11 +52,12 @@ const {
   ogType = 'website',
   twitterCard = 'summary_large_image',
   noindex = false,
+  locale = 'en',
 } = Astro.props;
 
 // Constants per §10.1 — these never change at the component level.
 const siteName = 'Agape Counseling Services';
-const locale = 'en_US';
+const ogLocale = locale === 'es' ? 'es_US' : 'en_US';
 ---
 
 <title>{title}</title>
@@ -69,7 +74,7 @@ const locale = 'en_US';
 <meta property="og:description" content={description} />
 <meta property="og:image" content={ogImage} />
 <meta property="og:site_name" content={siteName} />
-<meta property="og:locale" content={locale} />
+<meta property="og:locale" content={ogLocale} />
 
 {/* Twitter card block — §10.1 emission contract. */}
 <meta name="twitter:card" content={twitterCard} />
@@ -77,5 +82,8 @@ const locale = 'en_US';
 <meta name="twitter:description" content={description} />
 <meta name="twitter:image" content={ogImage} />
 
-{/* hreflang — placeholder for Phase 2 i18n per §9.2 / §10.1. */}
-<link rel="alternate" hreflang="en" href={canonicalURL} />
+{/* hreflang alternates are emitted by BaseLayout.astro from its
+    hreflang prop — single source of truth. The SEO component used
+    to emit a self-alternate here but that produced duplicate
+    alternates on pages where BaseLayout also passes the current
+    locale in its hreflang array. */}
